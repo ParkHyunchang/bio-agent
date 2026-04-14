@@ -1,0 +1,77 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  IMAGE_NAME: ghcr.io/parkhyunchang/bio-agent
+  CONTAINER_NAME: bio_agent_frontend
+  HOST_PORT: 3111
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Deploy to NAS via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.NAS_HOST }}
+          username: ${{ secrets.NAS_USER }}
+          password: ${{ secrets.NAS_SSH_PASSWORD }}
+          script: |
+            # ghcr.io 로그인
+            echo "${{ secrets.GHCR_PAT }}" | /usr/local/bin/docker login ghcr.io -u parkhyunchang --password-stdin
+
+            # 최신 이미지 Pull
+            /usr/local/bin/docker pull ${{ env.IMAGE_NAME }}:latest
+
+            # 기존 컨테이너 제거 (에러 무시)
+            /usr/local/bin/docker stop ${{ env.CONTAINER_NAME }} || true
+            /usr/local/bin/docker rm ${{ env.CONTAINER_NAME }} || true
+
+            # 새 컨테이너 실행
+            /usr/local/bin/docker run -d \
+              --name ${{ env.CONTAINER_NAME }} \
+              --restart unless-stopped \
+              -p ${{ env.HOST_PORT }}:80 \
+              ${{ env.IMAGE_NAME }}:latest
+
+            # 미사용 이미지 정리
+            /usr/local/bin/docker image prune -f
