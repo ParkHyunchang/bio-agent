@@ -242,6 +242,24 @@ export default {
   .features__inner { grid-template-columns: 1fr 1fr; }
 }
 
+@media (max-width: 480px) {
+  .hero-section {
+    padding: 2.5rem 1.25rem;
+  }
+
+  .hero__desc {
+    font-size: 0.875rem;
+  }
+
+  .features-section {
+    padding: 2.5rem 1.25rem 4rem;
+  }
+
+  .feature-card {
+    padding: 1.5rem 1.25rem;
+  }
+}
+
 @media (max-width: 400px) {
   .features__inner { grid-template-columns: 1fr; }
 }

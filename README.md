@@ -25,6 +25,8 @@ npm run serve
 
 → http://localhost:8080
 
+백엔드(`bio-agent-back`)가 먼저 실행되어 있어야 합니다.
+
 ### 프로덕션 빌드
 
 ```bash
@@ -39,19 +41,34 @@ npm run build
 src/
 ├── assets/
 │   └── css/base/
-│       ├── vars.css      # 다크 그린 테마 CSS 변수
-│       ├── reset.css     # CSS 리셋
-│       └── fonts.css     # Google Fonts (DM Sans, Montserrat)
+│       ├── vars.css              # 다크 그린 테마 CSS 변수
+│       ├── reset.css             # CSS 리셋
+│       └── fonts.css             # Google Fonts (DM Sans, Montserrat)
 ├── components/
-│   └── AppHeader.vue     # 상단 헤더 (로고 + 네비게이션)
+│   └── AppHeader.vue             # 상단 헤더 (로고 + 네비게이션)
 ├── views/
-│   └── HomeView.vue      # 메인 홈 화면
+│   ├── HomeView.vue              # 메인 홈 화면
+│   └── PaperReviewView.vue       # 논문 리뷰 페이지
 ├── router/
-│   └── index.js          # 라우터 설정
-├── axios.js              # Axios 인스턴스 (baseURL 자동 설정)
+│   └── index.js                  # 라우터 설정
+├── axios.js                      # Axios 인스턴스 (baseURL 자동 설정)
 ├── App.vue
 └── main.js
 ```
+
+## 페이지
+
+| 경로 | 설명 |
+|------|------|
+| `/` | 홈 — 서비스 소개 및 기능 카드 |
+| `/paper-review` | 논문 리뷰 — PubMed 검색 + Claude AI 요약 |
+
+### 논문 리뷰 (`/paper-review`)
+
+1. 상단 검색창에 키워드 입력 (예: `BRCA2`, `Alzheimer`, `CRISPR-Cas9`)
+2. PubMed에서 논문 10건 검색
+3. 왼쪽 목록에서 논문 선택 → 오른쪽에 초록 표시
+4. **AI 요약 생성** 버튼 클릭 → Claude가 한국어로 분석 요약
 
 ## 백엔드 연결
 
