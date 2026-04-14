@@ -1,0 +1,31 @@
+:root {
+  /* Bio Agent 테마 - 다크 그린 */
+  --primary:       #080d0b;
+  --surface:       #0d1610;
+  --surface-2:     #141f18;
+
+  --accent:        #4eca8b;
+  --accent-light:  #a8edcc;
+  --accent-dim:    rgba(78, 202, 139, 0.12);
+
+  --mainBg-color:  #080d0b;
+  --subBg100:      #0d1610;
+  --subBg200:      #141f18;
+
+  --text-primary:    #e8f5ee;
+  --text-secondary:  #b0ccbb;
+  --text-muted:      #6a8a75;
+
+  --card-border:        rgba(78, 202, 139, 0.12);
+  --card-border-strong: rgba(78, 202, 139, 0.28);
+
+  font-family: "DM Sans", "Montserrat", "Apple SD Gothic Neo", sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+body {
+  color: var(--text-primary);
+  background-color: var(--mainBg-color);
+}
