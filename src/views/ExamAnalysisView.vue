@@ -528,6 +528,8 @@ export default {
   border: 1px solid var(--card-border);
   border-radius: 10px;
   padding: 1.25rem;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .items-table-wrap {
@@ -769,6 +771,12 @@ export default {
   /* 테이블 → 카드형 레이아웃 전환 */
   .items-table-wrap {
     overflow-x: visible;
+  }
+
+  /* 768px 구간에서 설정한 min-width 리셋 */
+  .items-table {
+    min-width: 0;
+    width: 100%;
   }
 
   .items-table,
