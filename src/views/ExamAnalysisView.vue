@@ -124,10 +124,10 @@
                   :key="i"
                   :class="{ 'row--abnormal': item.isAbnormal }"
                 >
-                  <td data-label="항목명" class="td--name">{{ item.itemName }}</td>
-                  <td data-label="수치" class="td--value">{{ item.value || '—' }}</td>
-                  <td data-label="단위" class="td--unit">{{ item.unit || '—' }}</td>
-                  <td data-label="참고범위" class="td--ref">{{ item.referenceRange || '—' }}</td>
+                  <td data-label="항목명" class="td--name"><span>{{ item.itemName }}</span></td>
+                  <td data-label="수치" class="td--value"><span>{{ item.value || '—' }}</span></td>
+                  <td data-label="단위" class="td--unit"><span>{{ item.unit || '—' }}</span></td>
+                  <td data-label="참고범위" class="td--ref"><span>{{ item.referenceRange || '—' }}</span></td>
                   <td data-label="판정">
                     <span v-if="item.isAbnormal" class="status status--abnormal">이상</span>
                     <span v-else class="status status--normal">정상</span>
@@ -811,9 +811,8 @@ export default {
     padding: 0.3rem 0.75rem;
     border-bottom: 1px solid var(--card-border);
     font-size: 0.82rem;
+    min-width: 0;
     overflow: hidden;
-    word-break: break-all;
-    overflow-wrap: anywhere;
   }
 
   .items-table td:last-child {
@@ -831,6 +830,14 @@ export default {
     min-width: 52px;
     flex-shrink: 0;
     padding-top: 0.1rem;
+  }
+
+  /* 값 영역 — flex 아이템으로 지정해야 word-break 적용됨 */
+  .items-table td > span {
+    flex: 1;
+    min-width: 0;
+    word-break: break-all;
+    overflow-wrap: anywhere;
   }
 }
 </style>
