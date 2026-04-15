@@ -102,6 +102,13 @@
           <div class="box-label">추출된 항목 ({{ selectedRecord.items.length }}개)</div>
           <div class="items-table-wrap">
             <table class="items-table">
+              <colgroup>
+                <col class="col-name">
+                <col class="col-value">
+                <col class="col-unit">
+                <col class="col-ref">
+                <col class="col-status">
+              </colgroup>
               <thead>
                 <tr>
                   <th>항목명</th>
@@ -117,11 +124,11 @@
                   :key="i"
                   :class="{ 'row--abnormal': item.isAbnormal }"
                 >
-                  <td>{{ item.itemName }}</td>
-                  <td class="td--value">{{ item.value }}</td>
-                  <td class="td--unit">{{ item.unit }}</td>
-                  <td class="td--ref">{{ item.referenceRange }}</td>
-                  <td>
+                  <td data-label="항목명" class="td--name">{{ item.itemName }}</td>
+                  <td data-label="수치" class="td--value">{{ item.value || '—' }}</td>
+                  <td data-label="단위" class="td--unit">{{ item.unit || '—' }}</td>
+                  <td data-label="참고범위" class="td--ref">{{ item.referenceRange || '—' }}</td>
+                  <td data-label="판정">
                     <span v-if="item.isAbnormal" class="status status--abnormal">이상</span>
                     <span v-else class="status status--normal">정상</span>
                   </td>
@@ -188,6 +195,11 @@ export default {
         await this.loadRecords()
         if (res.data.length > 0) {
           this.selectedRecord = res.data[res.data.length - 1]
+          if (window.innerWidth <= 768) {
+            this.$nextTick(() => {
+              this.$el.querySelector('.detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+            })
+          }
         }
       } catch (e) {
         console.error('업로드 오류', e)
@@ -207,6 +219,11 @@ export default {
 
     selectRecord(record) {
       this.selectedRecord = record
+      if (window.innerWidth <= 768) {
+        this.$nextTick(() => {
+          this.$el.querySelector('.detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        })
+      }
     },
 
     async deleteRecord(id) {
@@ -510,6 +527,7 @@ export default {
 
 .items-table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   margin-top: 0.5rem;
 }
 
@@ -517,7 +535,15 @@ export default {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.875rem;
+  table-layout: fixed;
 }
+
+/* 컬럼 너비 고정 */
+.col-name   { width: 30%; }
+.col-value  { width: 28%; }
+.col-unit   { width: 10%; }
+.col-ref    { width: 18%; }
+.col-status { width: 14%; }
 
 .items-table th {
   text-align: left;
@@ -534,6 +560,8 @@ export default {
   color: var(--text-secondary);
   border-bottom: 1px solid var(--card-border);
   vertical-align: middle;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .items-table tbody tr:last-child td {
@@ -548,10 +576,17 @@ export default {
   background: rgba(224, 108, 108, 0.06);
 }
 
+.td--name {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
 .td--value {
   font-weight: 600;
   color: var(--text-primary);
   font-family: "DM Mono", monospace;
+  font-size: 0.82rem;
+  word-break: break-all;
 }
 
 .td--unit {
@@ -651,23 +686,39 @@ export default {
     overflow: visible;
   }
 
-  /* 왼쪽 패널 → 위쪽 패널 */
+  /* 위쪽 패널: 최대 높이 제한 후 내부 스크롤 */
   .records-panel {
     border-right: none;
     border-bottom: 1px solid var(--card-border);
+    max-height: 50vh;
+    overflow-y: auto;
+  }
+
+  /* 기록 목록 높이 제한 */
+  .records-list {
     max-height: none;
     overflow-y: visible;
   }
 
-  /* 기록 목록은 접히지 않고 자연 높이로 */
-  .records-list {
-    max-height: 40vh;
-    overflow-y: auto;
-  }
-
+  /* 아래 패널: 자연 높이 */
   .detail-panel {
     overflow: visible;
     padding: 1.25rem;
+    min-height: 50vh;
+  }
+
+  .record-detail {
+    max-width: 100%;
+  }
+
+  .record-detail__title {
+    font-size: 1rem;
+    word-break: break-all;
+  }
+
+  /* 원시 텍스트 높이 축소 */
+  .raw-text-box__text {
+    max-height: 150px;
   }
 
   /* 항목 테이블 — 가로 스크롤 */
@@ -678,6 +729,11 @@ export default {
 
   .items-table {
     min-width: 480px;
+  }
+
+  /* 삭제 버튼: 모바일에서 항상 표시 */
+  .record-item__delete {
+    opacity: 1;
   }
 }
 
@@ -695,22 +751,78 @@ export default {
     font-size: 0.68rem;
   }
 
-  .record-detail__title {
-    font-size: 1rem;
-  }
-
   .raw-text-box__text {
     font-size: 0.78rem;
-    max-height: 150px;
+    max-height: 120px;
   }
 
-  .items-table {
-    font-size: 0.8rem;
+  .record-detail__badges {
+    flex-wrap: wrap;
+    gap: 0.35rem;
   }
 
+  /* 테이블 → 카드형 레이아웃 전환 */
+  .items-table-wrap {
+    overflow-x: visible;
+  }
+
+  .items-table,
+  .items-table thead,
+  .items-table tbody,
+  .items-table tr,
   .items-table th,
   .items-table td {
-    padding: 0.4rem 0.5rem;
+    display: block;
+  }
+
+  /* 헤더 숨김 */
+  .items-table thead {
+    display: none;
+  }
+
+  /* 각 행을 카드로 */
+  .items-table tbody tr {
+    background: var(--surface);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    margin-bottom: 0.6rem;
+    padding: 0.5rem 0;
+    overflow: hidden;
+  }
+
+  .items-table tbody tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .row--abnormal {
+    border-color: rgba(224, 108, 108, 0.4) !important;
+  }
+
+  /* 각 셀: label — value 형태 */
+  .items-table td {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.3rem 0.75rem;
+    border-bottom: 1px solid var(--card-border);
+    font-size: 0.82rem;
+  }
+
+  .items-table td:last-child {
+    border-bottom: none;
+  }
+
+  /* data-label을 앞에 표시 */
+  .items-table td::before {
+    content: attr(data-label);
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    min-width: 52px;
+    flex-shrink: 0;
+    padding-top: 0.1rem;
   }
 }
 </style>
