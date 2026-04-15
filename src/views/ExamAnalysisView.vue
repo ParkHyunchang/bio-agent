@@ -72,7 +72,7 @@
       <!-- 기록 미선택 상태 -->
       <div v-if="!selectedRecord && !isUploading" class="panel-empty">
         <div class="panel-empty__icon">🔬</div>
-        <p>이미지를 업로드하거나<br>왼쪽에서 기록을 선택하세요</p>
+        <p>이미지를 업로드하거나<br>기록을 선택하세요</p>
       </div>
 
       <!-- 업로드/OCR 진행 중 -->
@@ -643,25 +643,74 @@ export default {
   to { transform: rotate(360deg); }
 }
 
-/* ===== 반응형 ===== */
+/* ===== 반응형 (태블릿/모바일) ===== */
 @media (max-width: 768px) {
   .exam-analysis {
     grid-template-columns: 1fr;
-    grid-template-rows: auto;
     height: auto;
     overflow: visible;
   }
 
+  /* 왼쪽 패널 → 위쪽 패널 */
   .records-panel {
     border-right: none;
     border-bottom: 1px solid var(--card-border);
-    max-height: 55vh;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  /* 기록 목록은 접히지 않고 자연 높이로 */
+  .records-list {
+    max-height: 40vh;
     overflow-y: auto;
   }
 
   .detail-panel {
     overflow: visible;
     padding: 1.25rem;
+  }
+
+  /* 항목 테이블 — 가로 스크롤 */
+  .items-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .items-table {
+    min-width: 480px;
+  }
+}
+
+/* ===== 소형 모바일 (≤480px) ===== */
+@media (max-width: 480px) {
+  .upload-area__inner {
+    padding: 1rem 0.75rem;
+  }
+
+  .upload-area__text {
+    font-size: 0.78rem;
+  }
+
+  .upload-area__sub {
+    font-size: 0.68rem;
+  }
+
+  .record-detail__title {
+    font-size: 1rem;
+  }
+
+  .raw-text-box__text {
+    font-size: 0.78rem;
+    max-height: 150px;
+  }
+
+  .items-table {
+    font-size: 0.8rem;
+  }
+
+  .items-table th,
+  .items-table td {
+    padding: 0.4rem 0.5rem;
   }
 }
 </style>

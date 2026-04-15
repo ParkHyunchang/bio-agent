@@ -71,7 +71,7 @@
         <!-- 미선택 상태 -->
         <div v-if="!selectedPaper && !isLoadingDetail" class="panel-empty">
           <div class="panel-empty__icon">🧬</div>
-          <p>왼쪽에서 논문을 선택하면<br>상세 정보와 AI 분석을 볼 수 있습니다</p>
+          <p>논문을 선택하면<br>상세 정보와 AI 분석을 볼 수 있습니다</p>
         </div>
 
         <!-- 상세 로딩 -->
