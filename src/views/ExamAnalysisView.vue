@@ -261,6 +261,7 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 0;
+  min-width: 0; /* Grid 아이템 overflow 방지 */
 }
 
 /* ===== 업로드 영역 ===== */
@@ -462,8 +463,10 @@ export default {
 /* ===== 오른쪽 상세 패널 ===== */
 .detail-panel {
   overflow-y: auto;
+  overflow-x: hidden; /* 가로 넘침 차단 */
   padding: 2rem;
   background: var(--primary);
+  min-width: 0; /* Grid 아이템 overflow 방지 */
 }
 
 .record-detail {
@@ -512,6 +515,8 @@ export default {
   color: var(--text-secondary);
   line-height: 1.8;
   white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   font-family: "DM Sans", sans-serif;
   max-height: 200px;
   overflow-y: auto;
@@ -806,6 +811,9 @@ export default {
     padding: 0.3rem 0.75rem;
     border-bottom: 1px solid var(--card-border);
     font-size: 0.82rem;
+    overflow: hidden;
+    word-break: break-all;
+    overflow-wrap: anywhere;
   }
 
   .items-table td:last-child {
