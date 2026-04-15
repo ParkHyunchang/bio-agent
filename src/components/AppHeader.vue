@@ -11,6 +11,9 @@
       <router-link to="/paper-review" class="nav__link" :class="{ 'nav__link--active': $route.path === '/paper-review' }" @click="mobileMenuOpen = false">
         논문 리뷰
       </router-link>
+      <router-link to="/exam-analysis" class="nav__link" :class="{ 'nav__link--active': $route.path === '/exam-analysis' }" @click="mobileMenuOpen = false">
+        검사 분석
+      </router-link>
     </nav>
     <button type="button" class="hamburger" :class="{ 'hamburger--open': mobileMenuOpen }" @click="mobileMenuOpen = !mobileMenuOpen">
       <span></span><span></span><span></span>
