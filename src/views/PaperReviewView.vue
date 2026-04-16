@@ -44,9 +44,22 @@
 
         <!-- 결과 목록 -->
         <template v-else>
-          <div class="results-header">
-            <span class="results-count">{{ papers.length }}건</span>
+          <!-- 철자 자동 교정 배너 -->
+          <div v-if="correctedQuery" class="spell-correction">
+            <span>'{{ originalQuery }}'를 '<strong>{{ correctedQuery }}</strong>'로 자동 교정하여 검색했습니다.</span>
           </div>
+
+          <!-- 광범위 검색 경고 배너 -->
+          <div v-if="tooBroad" class="broad-warning">
+            <span class="broad-warning__icon">⚠</span>
+            <span>검색어가 너무 광범위합니다. 더 구체적으로 입력해 주세요.</span>
+          </div>
+
+          <div class="results-header">
+            <span class="results-count">총 {{ total.toLocaleString() }}건</span>
+            <span class="results-page">{{ currentPage }} / {{ totalPages }}페이지</span>
+          </div>
+
           <ul class="paper-list">
             <li
               v-for="paper in papers"
@@ -62,6 +75,21 @@
               <p class="paper-item__journal">{{ paper.journal }} · {{ paper.pubDate }}</p>
             </li>
           </ul>
+
+          <!-- 페이지네이션 -->
+          <div class="pagination">
+            <button class="pg-btn" @click="goToPage(1)" :disabled="currentPage <= 1">«</button>
+            <button class="pg-btn" @click="goToPage(currentPage - 1)" :disabled="currentPage <= 1">‹</button>
+            <button
+              v-for="p in pageNumbers"
+              :key="p"
+              class="pg-btn pg-btn--num"
+              :class="{ 'pg-btn--active': p === currentPage }"
+              @click="goToPage(p)"
+            >{{ p }}</button>
+            <button class="pg-btn" @click="goToPage(currentPage + 1)" :disabled="currentPage >= totalPages">›</button>
+            <button class="pg-btn" @click="goToPage(totalPages)" :disabled="currentPage >= totalPages">»</button>
+          </div>
         </template>
       </aside>
 
@@ -144,6 +172,12 @@ export default {
       isSearching: false,
       hasSearched: false,
       papers: [],
+      total: 0,
+      currentPage: 1,
+      pageSize: 20,
+      tooBroad: false,
+      correctedQuery: null,
+      originalQuery: '',
       selectedPmid: null,
       selectedPaper: null,
       isLoadingDetail: false,
@@ -152,6 +186,17 @@ export default {
     }
   },
   computed: {
+    totalPages() {
+      return Math.max(1, Math.ceil(this.total / this.pageSize))
+    },
+    pageNumbers() {
+      const delta = 2
+      const start = Math.max(1, this.currentPage - delta)
+      const end = Math.min(this.totalPages, this.currentPage + delta)
+      const pages = []
+      for (let i = start; i <= end; i++) pages.push(i)
+      return pages
+    },
     renderedReview() {
       if (!this.review) return ''
       return this.review
@@ -169,22 +214,43 @@ export default {
   methods: {
     async search() {
       if (!this.query.trim() || this.isSearching) return
+      await this.fetchPage(1)
+    },
+
+    async fetchPage(page) {
       this.isSearching = true
       this.hasSearched = true
       this.papers = []
       this.selectedPaper = null
       this.selectedPmid = null
       this.review = null
+      if (page === 1) {
+        this.originalQuery = this.query.trim()
+        this.correctedQuery = null
+      }
       try {
         const res = await axios.get('/api/papers/search', {
-          params: { query: this.query.trim(), maxResults: 10 }
+          params: { query: this.query.trim(), page, size: this.pageSize }
         })
-        this.papers = res.data
+        this.papers = res.data.papers
+        this.total = res.data.total
+        this.currentPage = res.data.page
+        this.tooBroad = res.data.tooBroad
+        if (res.data.correctedQuery) {
+          this.correctedQuery = res.data.correctedQuery
+          this.originalQuery = this.query.trim()
+        }
       } catch (e) {
         console.error('검색 오류', e)
       } finally {
         this.isSearching = false
       }
+    },
+
+    async goToPage(page) {
+      if (page < 1 || page > this.totalPages || page === this.currentPage) return
+      await this.fetchPage(page)
+      this.$el.querySelector('.results-panel')?.scrollTo({ top: 0, behavior: 'smooth' })
     },
 
     async selectPaper(pmid) {
@@ -533,6 +599,87 @@ export default {
   color: var(--text-secondary);
   font-size: 0.9rem;
   line-height: 1.8;
+}
+
+/* ===== 철자 교정 배너 ===== */
+.spell-correction {
+  padding: 0.55rem 1.25rem;
+  background: rgba(78, 202, 139, 0.07);
+  border-bottom: 1px solid rgba(78, 202, 139, 0.2);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.spell-correction strong {
+  color: var(--accent);
+}
+
+/* ===== 광범위 검색 경고 배너 ===== */
+.broad-warning {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  background: rgba(255, 200, 0, 0.08);
+  border-bottom: 1px solid rgba(255, 200, 0, 0.25);
+  font-size: 0.8rem;
+  color: #c9a800;
+}
+
+.broad-warning__icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+/* ===== results-header 페이지 표시 ===== */
+.results-header {
+  justify-content: space-between;
+}
+
+.results-page {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* ===== 페이지네이션 ===== */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid var(--card-border);
+}
+
+.pg-btn {
+  min-width: 28px;
+  height: 28px;
+  padding: 0 0.4rem;
+  background: transparent;
+  border: 1px solid var(--card-border);
+  border-radius: 5px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.pg-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text-primary);
+}
+
+.pg-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.pg-btn--active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 600;
 }
 
 /* ===== 빈 상태 / 로딩 공통 ===== */
