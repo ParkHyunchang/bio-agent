@@ -425,7 +425,6 @@ export default {
   mounted() {
     this.loadRecords()
     this.loadModelStatus()
-    this.loadAgentHistory()
     this.loadSessionList()
   },
   computed: {
