@@ -333,6 +333,10 @@
           <div v-if="isAgentLoading" class="chat-msg chat-msg--agent">
             <div class="chat-msg__bubble chat-msg__bubble--loading">
               <span class="dot-pulse"></span>
+              <div class="loading-status">
+                <span class="loading-status__text">{{ loadingStatusText }}</span>
+                <span class="loading-status__elapsed">{{ loadingElapsed }}s</span>
+              </div>
             </div>
           </div>
         </div>
@@ -412,7 +416,10 @@ export default {
       agentSessionId: null,
       isDragOverChat: false,
       sessionList: [],
-      isSidebarOpen: false
+      isSidebarOpen: false,
+      loadingElapsed: 0,
+      loadingStatusText: '요청 전송 중...',
+      loadingTimer: null
     }
   },
   mounted() {
@@ -617,29 +624,68 @@ export default {
       const file = this.agentFile
       const imageUrl = file ? URL.createObjectURL(file) : null
 
-      // 사용자 메시지 추가
       this.agentMessages.push({ role: 'user', text: text || '(이미지 분석 요청)', imageUrl })
       this.agentInput = ''
       this.agentFile = null
       this.isAgentLoading = true
+      this.loadingElapsed = 0
+      this.loadingStatusText = '요청 전송 중...'
+      this.loadingTimer = setInterval(() => { this.loadingElapsed++ }, 1000)
       this.$nextTick(() => this.scrollChat())
 
-      try {
-        const form = new FormData()
-        form.append('message', text || '이 이미지를 분석해주세요.')
-        if (file) form.append('file', file)
-        if (this.agentSessionId) form.append('sessionId', this.agentSessionId)
+      const form = new FormData()
+      form.append('message', text || '이 이미지를 분석해주세요.')
+      if (file) form.append('file', file)
+      if (this.agentSessionId) form.append('sessionId', this.agentSessionId)
 
-        const { data } = await api.post('/api/agent/chat', form)
-        this.agentSessionId = data.sessionId
-        this.agentMessages.push({ role: 'agent', text: data.message })
-      } catch (e) {
-        this.agentMessages.push({
-          role: 'agent',
-          text: '오류가 발생했습니다: ' + (e.response?.data?.message || e.message)
+      try {
+        const baseURL = api.defaults.baseURL || ''
+        const response = await fetch(`${baseURL}/api/agent/chat/stream`, {
+          method: 'POST',
+          body: form
         })
+
+        const reader = response.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+
+        const handleBlock = (block) => {
+          const eventMatch = block.match(/event:\s*(\S+)/)
+          const dataMatch  = block.match(/data:\s*([\s\S]+)/)
+          if (!eventMatch || !dataMatch) return
+          const evtName = eventMatch[1]
+          const evtData = dataMatch[1].trim()
+
+          if (evtName === 'progress') {
+            this.loadingStatusText = evtData
+            this.$nextTick(() => this.scrollChat())
+          } else if (evtName === 'done') {
+            const parsed = JSON.parse(evtData)
+            this.agentSessionId = parsed.sessionId
+            this.agentMessages.push({ role: 'agent', text: parsed.message })
+          } else if (evtName === 'error') {
+            this.agentMessages.push({ role: 'agent', text: '오류가 발생했습니다: ' + evtData })
+          }
+        }
+
+        for (let chunk = await reader.read(); !chunk.done; chunk = await reader.read()) {
+          const { value } = chunk
+          buffer += decoder.decode(value, { stream: true })
+
+          const parts = buffer.split('\n\n')
+          buffer = parts.pop()
+          for (const block of parts) {
+            if (block.trim()) handleBlock(block)
+          }
+        }
+
+        if (buffer.trim()) handleBlock(buffer)
+      } catch (e) {
+        this.agentMessages.push({ role: 'agent', text: '오류가 발생했습니다: ' + e.message })
       } finally {
         this.isAgentLoading = false
+        clearInterval(this.loadingTimer)
+        this.loadingTimer = null
         if (this.agentSessionId) localStorage.setItem('agentSessionId', this.agentSessionId)
         this.$nextTick(() => this.scrollChat())
         this.loadSessionList()
@@ -1222,7 +1268,30 @@ export default {
   object-fit: cover;
 }
 
-.chat-msg__bubble--loading { padding: 0.75rem 1.2rem; }
+.chat-msg__bubble--loading {
+  padding: 0.7rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.loading-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.loading-status__text {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+}
+
+.loading-status__elapsed {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  opacity: 0.45;
+  font-variant-numeric: tabular-nums;
+}
 
 /* 점 로딩 애니메이션 */
 .dot-pulse {
