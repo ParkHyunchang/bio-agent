@@ -5,13 +5,6 @@
     <div class="tab-bar">
       <button
         class="tab-btn"
-        :class="{ 'tab-btn--active': activeTab === 'predict' }"
-        @click="activeTab = 'predict'"
-      >
-        Ct값 예측
-      </button>
-      <button
-        class="tab-btn"
         :class="{ 'tab-btn--active': activeTab === 'train' }"
         @click="activeTab = 'train'"
       >
@@ -24,11 +17,18 @@
       >
         AI 에이전트
       </button>
+      <button
+        class="tab-btn"
+        :class="{ 'tab-btn--active': activeTab === 'predict' }"
+        @click="activeTab = 'predict'"
+      >
+        Ct값 예측
+      </button>
 
       <!-- 모델 상태 배지 -->
-      <div class="model-badge" :class="modelStatus.trained ? 'model-badge--ok' : 'model-badge--none'">
-        <span v-if="modelStatus.trained">
-          모델 학습됨 · R² {{ modelStatus.cv_r2_mean }} · {{ modelStatus.sample_count }}개
+      <div class="model-badge" :class="modelStatus.trained && records.length > 0 ? 'model-badge--ok' : 'model-badge--none'">
+        <span v-if="modelStatus.trained && records.length > 0">
+          {{ modelStatus.model_type }} · R²{{ modelStatus.cv_r2_mean }} · {{ modelStatus.sample_count }}개
         </span>
         <span v-else>모델 미학습</span>
       </div>
@@ -40,64 +40,118 @@
       <!-- 업로드 폼 -->
       <section class="upload-section">
         <h2 class="section-title">학습 데이터 등록</h2>
-        <p class="section-desc">PCR 젤 이미지와 외부 기관에서 측정한 qPCR Ct값을 함께 업로드합니다.</p>
+        <p class="section-desc">PCR 젤 이미지를 업로드하고 각 레인의 실측 Ct값을 입력합니다. 등록 시 AI가 각 레인의 <strong>ROI(타겟 밴드 영역)</strong>를 자동 추출하고 픽셀 밝기를 정규화(Intensity Normalization)하여 학습에 반영합니다.</p>
 
         <div class="upload-row">
           <!-- 드래그&드롭 영역 -->
           <div
             class="upload-area"
-            :class="{ 'upload-area--drag': isDragging }"
-            @dragover.prevent="isDragging = true"
-            @dragleave.prevent="isDragging = false"
-            @drop.prevent="onDrop"
+            :class="{ 'upload-area--drag': isDraggingMulti }"
+            @dragover.prevent="isDraggingMulti = true"
+            @dragleave.prevent="isDraggingMulti = false"
+            @drop.prevent="onMultiLaneDrop"
           >
             <input
-              ref="fileInput"
+              ref="multiLaneFileInput"
               type="file"
               accept="image/*"
               class="upload-area__input"
-              @change="onFileChange"
+              @change="onMultiLaneFileChange"
             />
-            <div class="upload-area__inner" @click="$refs.fileInput.click()">
+            <div class="upload-area__inner" @click="$refs.multiLaneFileInput.click()">
               <div class="upload-area__icon">🧫</div>
-              <p class="upload-area__text">젤 이미지를 끌어다 놓거나 클릭</p>
+              <p v-if="!multiLaneFile" class="upload-area__text">젤 이미지를 끌어다 놓거나 클릭</p>
+              <p v-else class="upload-area__text">{{ multiLaneFile.name }}</p>
               <p class="upload-area__sub">JPG, PNG · 최대 20MB</p>
             </div>
           </div>
 
-          <!-- Ct값 입력 + 업로드 버튼 -->
+          <!-- 레인 분석 / Ct 자동 추출 버튼 -->
           <div class="ct-input-group">
-            <label class="input-label">실측 Ct값 (qPCR)</label>
-            <input
-              v-model.number="ctValue"
-              type="number"
-              step="0.01"
-              min="0"
-              max="50"
-              placeholder="예: 24.35"
-              class="ct-input"
-            />
-            <p v-if="selectedFile" class="file-chip">
-              <span>{{ selectedFile.name }}</span>
-              <button class="file-chip__remove" @click="clearFile">×</button>
-            </p>
             <button
-              class="btn-primary"
-              :disabled="!selectedFile || ctValue === null || isUploading"
-              @click="uploadTrainingData"
+              class="btn-secondary"
+              :disabled="!multiLaneFile || isExtractingLanes"
+              @click="extractLanesForTraining"
             >
-              <span v-if="isUploading" class="spinner"></span>
-              <span v-else>업로드</span>
+              <span v-if="isExtractingLanes" class="spinner spinner--dark"></span>
+              <span v-else>레인 분석</span>
             </button>
+            <button
+              class="btn-secondary"
+              style="margin-top:0.35rem"
+              :disabled="!multiLaneFile || isExtractingCt"
+              @click="autoExtractCt"
+              title="이미지에 표시된 Ct값을 AI가 자동으로 읽어옵니다"
+            >
+              <span v-if="isExtractingCt" class="spinner spinner--dark"></span>
+              <span v-else>✨ Ct 자동 추출</span>
+            </button>
+            <p v-if="multiLaneFile" class="file-chip" style="margin-top:0.35rem">
+              <span>{{ multiLaneFile.name }}</span>
+              <button class="file-chip__remove" @click="multiLaneFile = null; multiLaneExtracted = []; laneCtInputs = {}">×</button>
+            </p>
           </div>
         </div>
 
-        <!-- 업로드 결과 -->
-        <div v-if="uploadResult" class="result-box result-box--success">
-          <strong>업로드 완료:</strong> {{ uploadResult.fileName }}
-          — 밝기 {{ fmt(uploadResult.bandIntensity) }}, 면적 {{ fmt(uploadResult.bandArea) }},
-          상대강도 {{ fmt(uploadResult.relativeIntensity) }}
-          <span v-if="uploadResult.warning" class="warn-text"> ⚠ {{ uploadResult.warning }}</span>
+        <!-- 레인별 Ct값 입력 테이블 -->
+        <div v-if="multiLaneExtracted.length > 0" class="lane-result-wrap" style="margin-top:1rem">
+          <div class="lane-result-header">
+            <span class="lane-result-title">레인별 Ct값 입력</span>
+          </div>
+          <div class="records-table-wrap">
+            <table class="records-table lane-table">
+              <thead>
+                <tr>
+                  <th>레인</th>
+                  <th>레이블</th>
+                  <th>밝기</th>
+                  <th>상태</th>
+                  <th>실측 Ct값</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="lane in multiLaneExtracted"
+                  :key="lane.laneIndex"
+                  :class="lane.concentrationLabel === 'M' || lane.concentrationLabel === 'NTC' ? 'row--muted' : ''"
+                >
+                  <td>{{ lane.laneIndex }}</td>
+                  <td class="lane-label-cell">{{ lane.concentrationLabel }}</td>
+                  <td>{{ fmt(lane.bandIntensity) }}</td>
+                  <td>
+                    <span v-if="lane.concentrationLabel === 'M'" class="chip chip--gray">래더</span>
+                    <span v-else-if="lane.concentrationLabel === 'NTC'" class="chip chip--gray">음성대조</span>
+                    <span v-else-if="lane.isSaturated" class="chip chip--orange">포화</span>
+                    <span v-else-if="lane.isNegative" class="chip chip--gray">미검출</span>
+                    <span v-else class="chip chip--green">검출</span>
+                  </td>
+                  <td>
+                    <input
+                      v-if="lane.concentrationLabel !== 'M' && lane.concentrationLabel !== 'NTC'"
+                      v-model.number="laneCtInputs[lane.concentrationLabel]"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      max="50"
+                      placeholder="예: 24.35"
+                      class="ct-input ct-input--sm"
+                    />
+                    <span v-else class="muted">—</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="predict-actions" style="margin-top:0.75rem">
+            <button
+              class="btn-primary"
+              :disabled="isUploadingMultiLane || Object.keys(laneCtInputs).length === 0"
+              @click="uploadMultiLaneGel"
+            >
+              <span v-if="isUploadingMultiLane" class="spinner"></span>
+              <span v-else>저장</span>
+            </button>
+          </div>
         </div>
       </section>
 
@@ -114,7 +168,7 @@
             <span v-else>학습 실행 ({{ records.length }}개)</span>
           </button>
         </div>
-        <p class="section-desc">저장된 학습 데이터 전체를 사용해 회귀 모델을 재학습합니다. 최소 3개 이상 필요.</p>
+        <p class="section-desc">저장된 학습 데이터 전체를 사용해 모델을 재학습합니다. 최소 3개 이상 필요. 학습 목표: ① mecA 이진 분류(양성/음성) ② 저농도(10¹~10³) LOD 탐지 ③ 프라이머 다이머 노이즈 필터링.</p>
 
         <div v-if="trainResult" class="result-box result-box--info">
           <strong>학습 완료</strong> · 모델: {{ trainResult.model_type }}
@@ -122,6 +176,7 @@
           · CV R²: {{ trainResult.cv_r2_mean }} ± {{ trainResult.cv_r2_std }}
           · RMSE: {{ trainResult.train_rmse }} Ct
           · 샘플: {{ trainResult.sample_count }}개
+          <br><span class="result-objectives">학습 목표 반영: mecA 이진 분류 · 저농도(10¹~10³) LOD 탐지 · 프라이머 다이머 노이즈 필터링</span>
         </div>
       </section>
 
@@ -162,6 +217,8 @@
                   />
                 </th>
                 <th>파일명</th>
+                <th>레인</th>
+                <th>레이블</th>
                 <th>Ct값</th>
                 <th>밝기</th>
                 <th>면적</th>
@@ -186,6 +243,8 @@
                   />
                 </td>
                 <td class="col-name">{{ r.fileName }}</td>
+                <td>{{ r.laneIndex }}</td>
+                <td class="lane-label-cell">{{ r.concentrationLabel || '—' }}</td>
                 <td class="col-ct">{{ r.ctValue }}</td>
                 <td>{{ fmt(r.bandIntensity) }}</td>
                 <td>{{ fmt(r.bandArea) }}</td>
@@ -205,121 +264,190 @@
     <div v-if="activeTab === 'predict'" class="tab-content">
       <section class="predict-section">
         <h2 class="section-title">새 이미지로 Ct값 예측</h2>
-        <p class="section-desc">PCR 젤 이미지를 여러 장 업로드하면 학습된 모델이 qPCR Ct값을 예측합니다. 예측 후 학습 데이터로 일괄 등록할 수 있습니다.</p>
+        <p class="section-desc">젤 이미지를 여러 장 업로드하면 이미지당 10개 레인을 분석하여 레인별 Ct값을 예측합니다.</p>
 
         <div v-if="!modelStatus.trained" class="result-box result-box--warn">
           모델이 아직 학습되지 않았습니다. 학습 데이터 탭에서 데이터를 등록하고 학습을 실행하세요.
         </div>
 
-        <!-- 업로드 영역 -->
+        <!-- 멀티 업로드 영역 -->
         <div
           class="upload-area upload-area--wide"
-          :class="{ 'upload-area--drag': isPredictDragging }"
-          @dragover.prevent="isPredictDragging = true"
-          @dragleave.prevent="isPredictDragging = false"
-          @drop.prevent="onPredictDrop"
+          :class="{ 'upload-area--drag': isGelPredictDragging }"
+          @dragover.prevent="isGelPredictDragging = true"
+          @dragleave.prevent="isGelPredictDragging = false"
+          @drop.prevent="onGelPredictDrop"
         >
           <input
-            ref="predictFileInput"
+            ref="gelPredictFileInput"
             type="file"
             accept="image/*"
             multiple
             class="upload-area__input"
-            @change="onPredictFilesChange"
+            @change="onGelPredictFilesChange"
           />
-          <div class="upload-area__inner" @click="$refs.predictFileInput.click()">
+          <div class="upload-area__inner" @click="$refs.gelPredictFileInput.click()">
             <div class="upload-area__icon">🔬</div>
             <p class="upload-area__text">젤 이미지를 끌어다 놓거나 클릭 (여러 장 가능)</p>
-            <p class="upload-area__sub">JPG, PNG · 최대 20MB · 복수 선택 가능</p>
+            <p class="upload-area__sub">JPG, PNG · 최대 20MB</p>
           </div>
         </div>
 
         <!-- 액션 버튼 -->
-        <div v-if="predictItems.length > 0" class="predict-actions">
-          <span class="predict-count">{{ predictItems.length }}개 이미지</span>
+        <div class="predict-actions" style="margin-top:0.75rem">
           <button
             class="btn-secondary"
-            :disabled="!hasPendingItems || isAnyPredicting || !modelStatus.trained"
-            @click="predictAll"
+            :disabled="!hasPendingGelItems || isAnyGelPredicting || !modelStatus.trained"
+            @click="predictAllGelLanes"
           >
-            <span v-if="isAnyPredicting" class="spinner spinner--dark"></span>
-            <span v-else>모두 예측</span>
+            <span v-if="isAnyGelPredicting" class="spinner spinner--dark"></span>
+            <span v-else>전체 예측 ({{ gelPredictItems.filter(i => i.status === 'pending').length }}개)</span>
           </button>
-          <button
-            class="btn-primary"
-            :disabled="doneItems.length === 0 || isRegisteringAll"
-            @click="registerAllAsTraining"
-          >
-            <span v-if="isRegisteringAll" class="spinner"></span>
-            <span v-else>학습 데이터에 일괄 등록 ({{ doneItems.length }}개)</span>
-          </button>
-          <button class="btn-clear" @click="clearAllPredictItems">전체 삭제</button>
+          <span class="predict-count">{{ gelPredictItems.length }}개 이미지</span>
+          <button v-if="gelPredictItems.length > 0" class="btn-clear" @click="clearGelPredict">전체 초기화</button>
         </div>
 
-        <!-- 일괄 등록 결과 -->
-        <div v-if="registerResult" class="result-box" :class="registerResult.errors > 0 ? 'result-box--warn' : 'result-box--success'">
-          일괄 등록 완료: {{ registerResult.success }}개 성공
-          <span v-if="registerResult.duplicates > 0"> · {{ registerResult.duplicates }}개 중복(건너뜀)</span>
-          <span v-if="registerResult.errors > 0"> · {{ registerResult.errors }}개 실패</span>
-        </div>
+        <!-- 이미지별 결과 -->
+        <div
+          v-for="(item, idx) in gelPredictItems"
+          :key="idx"
+          class="gel-predict-panel"
+          :class="{
+            'gel-predict-panel--done': item.status === 'done',
+            'gel-predict-panel--error': item.status === 'error'
+          }"
+        >
+          <!-- 패널 헤더 -->
+          <div class="gel-predict-panel__header">
+            <span class="gel-predict-panel__name">{{ item.file.name }}</span>
+            <span v-if="item.status === 'pending'" class="chip chip--gray">대기</span>
+            <span v-else-if="item.status === 'predicting'" class="chip chip--orange">분석 중</span>
+            <span v-else-if="item.status === 'error'" class="chip chip--red">오류</span>
+            <span v-if="item.status === 'done' && itemLod(item)" class="lod-badge">LOD: {{ itemLod(item) }}</span>
+            <div style="margin-left:auto;display:flex;gap:0.5rem;align-items:center">
+              <button
+                class="btn-secondary"
+                style="padding:0.3rem 0.75rem;font-size:0.8rem"
+                :disabled="item.status === 'predicting' || !modelStatus.trained"
+                @click="predictSingleGelItem(item)"
+              >
+                <span v-if="item.status === 'predicting'" class="spinner spinner--dark spinner--sm"></span>
+                <span v-else>예측</span>
+              </button>
+              <button class="btn-delete" @click="removeGelPredictItem(idx)">×</button>
+            </div>
+          </div>
 
-        <!-- 아이템 목록 -->
-        <div v-if="predictItems.length > 0" class="predict-items">
-          <div
-            v-for="(item, idx) in predictItems"
-            :key="idx"
-            class="predict-item"
-            :class="{
-              'predict-item--error': item.status === 'error',
-              'predict-item--done': item.status === 'done',
-              'predict-item--registered': item.status === 'registered',
-              'predict-item--duplicate': item.status === 'duplicate'
-            }"
-          >
-            <img :src="item.imageUrl" class="predict-item__thumb" alt="미리보기" />
+          <!-- 오류 메시지 -->
+          <p v-if="item.status === 'error'" class="error-text" style="margin:0.4rem 0 0;font-size:0.82rem">
+            {{ item.errorMsg }}
+          </p>
 
-            <div class="predict-item__info">
-              <p class="predict-item__name">{{ item.file.name }}</p>
-              <span class="predict-item__status" :class="`status--${item.status}`">
-                <span v-if="item.status === 'pending'">대기 중</span>
-                <span v-else-if="item.status === 'predicting'" class="status-predicting">
-                  <span class="spinner spinner--sm spinner--dark"></span> 예측 중...
-                </span>
-                <span v-else-if="item.status === 'done'">예측 완료</span>
-                <span v-else-if="item.status === 'registered'">등록 완료</span>
-                <span v-else-if="item.status === 'duplicate'">이미 등록된 이미지</span>
-                <span v-else-if="item.status === 'error'">오류: {{ item.errorMsg }}</span>
-              </span>
-              <div v-if="item.status === 'done' || item.status === 'registered'" class="predict-item__features">
-                <span class="feature-chip">밝기 {{ fmt(item.result?.features?.band_intensity) }}</span>
-                <span class="feature-chip">면적 {{ fmt(item.result?.features?.band_area) }}</span>
-                <span class="feature-chip">상대강도 {{ fmt(item.result?.features?.relative_intensity) }}</span>
+          <!-- 레인 결과 테이블 -->
+          <div v-if="item.status === 'done' && item.laneResults.length > 0" class="lane-result-wrap" style="margin-top:0.75rem">
+            <div class="records-table-wrap">
+              <table class="records-table lane-table">
+                <thead>
+                  <tr>
+                    <th>레인</th>
+                    <th>레이블</th>
+                    <th>예측 Ct</th>
+                    <th>실측 Ct</th>
+                    <th>밝기</th>
+                    <th>상대강도</th>
+                    <th>밴드 면적</th>
+                    <th>상태</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="lane in item.laneResults"
+                    :key="lane.laneIndex"
+                    :class="laneRowClass(lane)"
+                  >
+                    <td>{{ lane.laneIndex }}</td>
+                    <td class="lane-label-cell">{{ lane.concentrationLabel }}</td>
+                    <td class="col-ct">
+                      <span v-if="lane.concentrationLabel === 'M' || lane.concentrationLabel === 'NTC'" class="muted">—</span>
+                      <span v-else-if="lane.isNegative" class="muted">—</span>
+                      <span v-else>{{ lane.predictedCt != null ? lane.predictedCt.toFixed(2) : '—' }}</span>
+                    </td>
+                    <td>
+                      <input
+                        v-if="lane.concentrationLabel !== 'M' && lane.concentrationLabel !== 'NTC'"
+                        v-model.number="item.actualCtInputs[lane.concentrationLabel]"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        max="50"
+                        placeholder="실측값"
+                        class="ct-input ct-input--sm ct-input--actual"
+                      />
+                      <span v-else class="muted">—</span>
+                    </td>
+                    <td>{{ fmt(lane.bandIntensity) }}</td>
+                    <td>{{ fmt(lane.relativeIntensity) }}</td>
+                    <td>{{ fmt(lane.bandArea) }}</td>
+                    <td>
+                      <span v-if="lane.concentrationLabel === 'M'" class="chip chip--gray">래더</span>
+                      <span v-else-if="lane.concentrationLabel === 'NTC' && lane.isNegative" class="chip chip--green">NTC 음성</span>
+                      <span v-else-if="lane.concentrationLabel === 'NTC' && !lane.isNegative" class="chip chip--red">오염의심 ⚠</span>
+                      <span v-else-if="lane.isSaturated" class="chip chip--orange">포화 (고농도)</span>
+                      <span v-else-if="lane.isNegative" class="chip chip--gray">mecA 음성</span>
+                      <span v-else-if="lane.isPrimerDimer" class="chip chip--orange">다이머 노이즈</span>
+                      <span v-else class="chip chip--green">mecA 양성</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <!-- 저농도 구간(LOD) 전용 요약 -->
+            <div class="lod-summary">
+              <div class="lod-summary__title">저농도 구간 집중 분석 (10¹~10³)</div>
+              <div class="lod-summary__lanes">
+                <div
+                  v-for="entry in itemLowConcLanes(item)"
+                  :key="entry.label"
+                  class="lod-lane-card"
+                  :class="entry.lane ? (entry.detected ? 'lod-lane-card--pos' : 'lod-lane-card--neg') : 'lod-lane-card--missing'"
+                >
+                  <span class="lod-lane-card__label">{{ entry.label }}</span>
+                  <span v-if="!entry.lane" class="lod-lane-card__status muted">레인 없음</span>
+                  <template v-else>
+                    <span class="lod-lane-card__status">{{ entry.detected ? 'mecA 양성' : 'mecA 음성' }}</span>
+                    <span class="lod-lane-card__intensity">강도: {{ fmt(entry.lane.relativeIntensity) }}</span>
+                  </template>
+                </div>
+              </div>
+              <p v-if="itemLod(item)" class="lod-desc">
+                검출 한계(LOD): <strong>{{ itemLod(item) }}</strong> — Tm 59.72°C 프라이머 기준, 육안 확인 불가 구간에서의 AI 탐지 결과입니다.
+              </p>
+              <p v-else class="lod-desc lod-desc--none">저농도 구간(10¹~10³) 전 레인 mecA 음성 — LOD 미달 또는 음성 샘플.</p>
+            </div>
+
+            <!-- 학습 데이터 등록 -->
+            <div class="register-training-wrap">
+              <div class="register-training-hint">실측 Ct값을 입력한 레인을 학습 데이터로 등록합니다.</div>
+              <div class="register-training-actions">
+                <button
+                  class="btn-primary"
+                  :disabled="item.isRegistering || !hasActualCt(item)"
+                  @click="uploadPredictAsTraining(item)"
+                >
+                  <span v-if="item.isRegistering" class="spinner"></span>
+                  <span v-else>학습 데이터로 등록 ({{ countActualCt(item) }}개 레인)</span>
+                </button>
+                <span
+                  v-if="item.registerMsg"
+                  class="register-msg"
+                  :class="{
+                    'register-msg--ok': item.registerMsg.type === 'ok',
+                    'register-msg--dup': item.registerMsg.type === 'duplicate',
+                    'register-msg--err': item.registerMsg.type === 'error'
+                  }"
+                >{{ item.registerMsg.text }}</span>
               </div>
             </div>
-
-            <div v-if="item.status === 'done' || item.status === 'registered'" class="predict-item__ct-wrap">
-              <span class="predict-item__ct-label">예측 Ct</span>
-              <span class="predict-item__ct-value">{{ item.result?.predictedCt }}</span>
-            </div>
-
-            <div v-if="item.status === 'done'" class="predict-item__edit">
-              <label class="predict-item__edit-label">등록 Ct값</label>
-              <input
-                v-model.number="item.editCt"
-                type="number"
-                step="0.01"
-                min="0"
-                max="50"
-                class="ct-input ct-input--sm"
-                placeholder="Ct값"
-              />
-            </div>
-
-            <button
-              class="btn-delete"
-              :disabled="item.status === 'predicting'"
-              @click="removePredictItem(idx)"
-            >삭제</button>
           </div>
         </div>
       </section>
@@ -387,7 +515,8 @@
           <h2 class="section-title" style="margin:0">AI 에이전트</h2>
         </div>
         <p class="section-desc">
-          PCR 젤 이미지를 첨부하거나 질문을 입력하면 AI 에이전트가 분석하고 해석해드립니다.
+          젤 이미지 첨부 시 M·10⁸~10¹·NTC 전체 레인을 분석합니다.
+          ① <strong>mecA 이진 분류</strong>(양성/음성) ② 육안 미검출 저농도(10¹~10³) <strong>LOD 탐지 확률</strong> ③ 프라이머 다이머와 실제 밴드를 구분하는 <strong>노이즈 필터링</strong>을 중점 해석합니다.
         </p>
 
         <!-- 대화 기록 -->
@@ -468,7 +597,7 @@ export default {
   name: 'GelAnalysisView',
   data() {
     return {
-      activeTab: 'predict',
+      activeTab: 'train',
 
       // 학습 데이터 업로드
       selectedFile: null,
@@ -487,11 +616,18 @@ export default {
       selectedIds: [],
       isDeleting: false,
 
-      // 예측
-      predictItems: [],
-      isPredictDragging: false,
-      isRegisteringAll: false,
-      registerResult: null,
+      // 멀티레인 Ct값 예측 (멀티 이미지)
+      gelPredictItems: [],
+      isGelPredictDragging: false,
+
+      // 멀티레인 학습 데이터 업로드
+      multiLaneFile: null,
+      multiLaneExtracted: [],
+      laneCtInputs: {},
+      isExtractingLanes: false,
+      isExtractingCt: false,
+      isUploadingMultiLane: false,
+      isDraggingMulti: false,
 
       // 모델 상태
       modelStatus: { trained: false },
@@ -522,14 +658,11 @@ export default {
     someSelected() {
       return this.selectedIds.length > 0 && this.selectedIds.length < this.records.length
     },
-    hasPendingItems() {
-      return this.predictItems.some(i => i.status === 'pending')
+    hasPendingGelItems() {
+      return this.gelPredictItems.some(i => i.status === 'pending')
     },
-    isAnyPredicting() {
-      return this.predictItems.some(i => i.status === 'predicting')
-    },
-    doneItems() {
-      return this.predictItems.filter(i => i.status === 'done')
+    isAnyGelPredicting() {
+      return this.gelPredictItems.some(i => i.status === 'predicting')
     },
     groupedSessions() {
       const now = new Date()
@@ -571,82 +704,196 @@ export default {
       this.$refs.fileInput.value = ''
     },
 
-    onPredictFilesChange(e) {
-      this.addPredictFiles(Array.from(e.target.files))
-      this.$refs.predictFileInput.value = ''
+    onGelPredictFilesChange(e) {
+      this.addGelPredictFiles(Array.from(e.target.files))
+      e.target.value = ''
     },
-    onPredictDrop(e) {
-      this.isPredictDragging = false
+    onGelPredictDrop(e) {
+      this.isGelPredictDragging = false
       const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
-      this.addPredictFiles(files)
+      this.addGelPredictFiles(files)
     },
-    addPredictFiles(files) {
+    addGelPredictFiles(files) {
       for (const file of files) {
-        this.predictItems.push({
+        this.gelPredictItems.push({
           file,
           imageUrl: URL.createObjectURL(file),
           status: 'pending',
-          result: null,
-          editCt: null,
-          errorMsg: ''
+          laneResults: [],
+          errorMsg: '',
+          actualCtInputs: {},
+          isRegistering: false,
+          registerMsg: null
         })
       }
     },
-    removePredictItem(idx) {
-      URL.revokeObjectURL(this.predictItems[idx].imageUrl)
-      this.predictItems.splice(idx, 1)
+    removeGelPredictItem(idx) {
+      URL.revokeObjectURL(this.gelPredictItems[idx].imageUrl)
+      this.gelPredictItems.splice(idx, 1)
     },
-    clearAllPredictItems() {
-      for (const item of this.predictItems) URL.revokeObjectURL(item.imageUrl)
-      this.predictItems = []
-      this.registerResult = null
+    clearGelPredict() {
+      for (const item of this.gelPredictItems) URL.revokeObjectURL(item.imageUrl)
+      this.gelPredictItems = []
+      if (this.$refs.gelPredictFileInput) this.$refs.gelPredictFileInput.value = ''
     },
-    async predictAll() {
-      const pending = this.predictItems.filter(i => i.status === 'pending')
-      for (const item of pending) {
-        await this.predictSingle(item)
-      }
-    },
-    async predictSingle(item) {
+    async predictSingleGelItem(item) {
       item.status = 'predicting'
+      item.laneResults = []
       try {
         const form = new FormData()
         form.append('file', item.file)
-        const { data } = await api.post('/api/gel/predict', form)
-        item.result = data
-        item.editCt = data.predictedCt
+        const { data } = await api.post('/api/gel/predict-gel', form)
+        item.laneResults = Array.isArray(data) ? data : []
         item.status = 'done'
       } catch (e) {
         item.status = 'error'
-        item.errorMsg = e.response?.data || e.message
+        item.errorMsg = e.response?.data?.error || e.message
       }
     },
-    async registerAllAsTraining() {
-      this.isRegisteringAll = true
-      this.registerResult = null
-      let success = 0, duplicates = 0, errors = 0
-      const items = this.predictItems.filter(i => i.status === 'done' && i.editCt !== null)
-      for (const item of items) {
-        try {
-          const form = new FormData()
-          form.append('file', item.file)
-          form.append('ctValue', item.editCt)
-          await api.post('/api/gel/upload', form)
-          item.status = 'registered'
-          success++
-        } catch (e) {
-          if (e.response?.status === 409) {
-            item.status = 'duplicate'
-            duplicates++
-          } else {
-            item.errorMsg = e.response?.data?.error || e.message
-            errors++
-          }
-        }
+    async predictAllGelLanes() {
+      const pending = this.gelPredictItems.filter(i => i.status === 'pending')
+      for (const item of pending) {
+        await this.predictSingleGelItem(item)
       }
-      this.registerResult = { success, duplicates, errors }
-      this.isRegisteringAll = false
-      await this.loadRecords()
+    },
+    itemLod(item) {
+      const detected = item.laneResults.filter(l =>
+        l.concentrationLabel !== 'M' && l.concentrationLabel !== 'NTC' && !l.isNegative
+      )
+      if (detected.length === 0) return null
+      return detected.reduce((min, l) => {
+        const v = parseFloat(l.concentrationLabel?.replace('10^', '') ?? '999')
+        const mv = parseFloat(min.concentrationLabel?.replace('10^', '') ?? '999')
+        return v < mv ? l : min
+      }).concentrationLabel
+    },
+    laneRowClass(lane) {
+      const low = ['10^1', '10^2', '10^3']
+      if (lane.concentrationLabel === 'M' || lane.concentrationLabel === 'NTC') return 'row--muted'
+      if (low.includes(lane.concentrationLabel)) return lane.isNegative ? 'row--low-conc-neg' : 'row--low-conc'
+      return ''
+    },
+    hasActualCt(item) {
+      return Object.values(item.actualCtInputs).some(v => v !== null && v !== '' && !isNaN(Number(v)))
+    },
+    countActualCt(item) {
+      return Object.values(item.actualCtInputs).filter(v => v !== null && v !== '' && !isNaN(Number(v))).length
+    },
+    async uploadPredictAsTraining(item) {
+      item.isRegistering = true
+      item.registerMsg = null
+      try {
+        const ctMap = Object.fromEntries(
+          Object.entries(item.actualCtInputs)
+            .filter(([, v]) => v !== null && v !== '' && !isNaN(Number(v)))
+            .map(([k, v]) => [k, Number(v)])
+        )
+        const form = new FormData()
+        form.append('file', item.file)
+        form.append('ctValues', JSON.stringify(ctMap))
+        const { data } = await api.post('/api/gel/upload-gel', form)
+        if (data.duplicate) {
+          item.registerMsg = { type: 'duplicate', text: '이미 등록된 데이터입니다.' }
+        } else {
+          const count = Array.isArray(data) ? data.length : 0
+          item.registerMsg = { type: 'ok', text: `${count}개 레인이 학습 데이터로 등록되었습니다.` }
+          await this.loadRecords()
+        }
+      } catch (e) {
+        if (e.response?.status === 409) {
+          item.registerMsg = { type: 'duplicate', text: '이미 등록된 데이터입니다.' }
+        } else {
+          item.registerMsg = { type: 'error', text: '등록 실패: ' + (e.response?.data?.error || e.message) }
+        }
+      } finally {
+        item.isRegistering = false
+      }
+    },
+    itemLowConcLanes(item) {
+      const labels = ['10^1', '10^2', '10^3']
+      return labels.map(label => {
+        const lane = item.laneResults.find(l => l.concentrationLabel === label)
+        return { label, lane, detected: lane && !lane.isNegative }
+      })
+    },
+    onMultiLaneFileChange(e) {
+      this.multiLaneFile = e.target.files[0] || null
+      this.multiLaneExtracted = []
+      this.laneCtInputs = {}
+    },
+    onMultiLaneDrop(e) {
+      this.isDraggingMulti = false
+      const file = e.dataTransfer.files[0]
+      if (file && file.type.startsWith('image/')) {
+        this.multiLaneFile = file
+        this.multiLaneExtracted = []
+        this.laneCtInputs = {}
+      }
+    },
+    async autoExtractCt() {
+      if (!this.multiLaneFile) return
+      this.isExtractingCt = true
+      try {
+        const form = new FormData()
+        form.append('file', this.multiLaneFile)
+        const { data } = await api.post('/api/gel/auto-ct', form)
+        const count = Object.keys(data).length
+        if (count === 0) {
+          alert('이미지에서 Ct값을 찾지 못했습니다.\n이미지에 "Ct = 숫자" 형태의 텍스트가 있는지 확인하세요.')
+        } else {
+          Object.assign(this.laneCtInputs, data)
+          alert(`${count}개 레인의 Ct값이 자동으로 입력되었습니다.`)
+        }
+      } catch (e) {
+        alert('Ct값 자동 추출 실패: ' + (e.response?.data?.error || e.message))
+      } finally {
+        this.isExtractingCt = false
+      }
+    },
+    async extractLanesForTraining() {
+      if (!this.multiLaneFile) return
+      this.isExtractingLanes = true
+      this.multiLaneExtracted = []
+      this.laneCtInputs = {}
+      try {
+        const form = new FormData()
+        form.append('file', this.multiLaneFile)
+        const { data } = await api.post('/api/gel/extract-gel', form)
+        this.multiLaneExtracted = Array.isArray(data) ? data : []
+      } catch (e) {
+        alert('레인 분석 실패: ' + (e.response?.data?.error || e.message))
+      } finally {
+        this.isExtractingLanes = false
+      }
+    },
+    async uploadMultiLaneGel() {
+      if (Object.keys(this.laneCtInputs).length === 0) return
+      this.isUploadingMultiLane = true
+      try {
+        const form = new FormData()
+        form.append('file', this.multiLaneFile)
+        form.append('ctValues', JSON.stringify(this.laneCtInputs))
+        const { data } = await api.post('/api/gel/upload-gel', form)
+        if (data.duplicate) {
+          alert('이미 등록된 데이터입니다.')
+        } else {
+          const count = Array.isArray(data) ? data.length : 0
+          alert(`${count}개 레인이 저장되었습니다.`)
+          this.multiLaneFile = null
+          this.multiLaneExtracted = []
+          this.laneCtInputs = {}
+          if (this.$refs.multiLaneFileInput) this.$refs.multiLaneFileInput.value = ''
+          await this.loadRecords()
+        }
+      } catch (e) {
+        if (e.response?.status === 409) {
+          alert('이미 등록된 데이터입니다.')
+        } else {
+          alert('업로드 실패: ' + (e.response?.data?.error || e.message))
+        }
+      } finally {
+        this.isUploadingMultiLane = false
+      }
     },
 
     // ── 학습 데이터 업로드 ──────────────────────────────────────
@@ -688,6 +935,8 @@ export default {
         await api.delete(`/api/gel/records/${id}`)
         this.records = this.records.filter(r => r.id !== id)
         this.selectedIds = this.selectedIds.filter(sid => sid !== id)
+        if (this.records.length === 0) await this.resetModel()
+        else await this.loadModelStatus()
       } catch (e) {
         alert('삭제 실패: ' + (e.response?.data || e.message))
       }
@@ -700,6 +949,8 @@ export default {
         const deletedSet = new Set(this.selectedIds)
         this.records = this.records.filter(r => !deletedSet.has(r.id))
         this.selectedIds = []
+        if (this.records.length === 0) await this.resetModel()
+        else await this.loadModelStatus()
       } catch (e) {
         alert('일부 삭제 실패: ' + (e.response?.data || e.message))
         await this.loadRecords()
@@ -738,6 +989,12 @@ export default {
 
 
     // ── 모델 상태 ───────────────────────────────────────────────
+    async resetModel() {
+      try {
+        await api.delete('/api/gel/model')
+      } catch { /* 무시 */ }
+      await this.loadModelStatus()
+    },
     async loadModelStatus() {
       try {
         const { data } = await api.get('/api/gel/model/status')
@@ -1321,6 +1578,41 @@ export default {
   width: 100px;
 }
 
+.ct-input--actual {
+  width: 80px;
+  border-color: rgba(33, 150, 243, 0.5);
+}
+.ct-input--actual:focus { border-color: #2196f3; }
+
+/* ── 학습 데이터 등록 영역 ──────────────────────────────────── */
+.register-training-wrap {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--card-border);
+  border-radius: 8px;
+}
+
+.register-training-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+}
+
+.register-training-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.register-msg {
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+.register-msg--ok  { color: #4caf50; }
+.register-msg--dup { color: #ff9800; }
+.register-msg--err { color: #e53935; }
+
 .spinner--dark {
   border-color: rgba(0,0,0,0.15);
   border-top-color: currentColor;
@@ -1721,4 +2013,146 @@ export default {
 .send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 :deep(.md-heading) { display: block; margin: 0.5rem 0 0.25rem; font-size: 0.95rem; }
+
+/* ── 이미지별 예측 패널 ─────────────────────────────────────── */
+.gel-predict-panel {
+  margin-top: 1rem;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  background: var(--surface);
+}
+.gel-predict-panel--done  { border-color: rgba(76,175,80,0.4); }
+.gel-predict-panel--error { border-color: rgba(229,57,53,0.4); }
+
+.gel-predict-panel__header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.gel-predict-panel__name {
+  font-size: 0.85rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.error-text { color: #e53935; }
+
+/* ── 레인 결과 테이블 ──────────────────────────────────────── */
+.lane-result-wrap { margin-top: 1.25rem; }
+
+.lane-result-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.lane-result-title { font-size: 0.9rem; font-weight: 600; }
+
+.lane-label-cell { font-weight: 500; font-family: monospace; }
+
+.result-objectives {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+  color: #2196f3;
+  opacity: 0.85;
+}
+
+/* ── 저농도 구간 요약 박스 ───────────────────────────────────── */
+.lod-summary {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px solid rgba(33, 150, 243, 0.3);
+  border-radius: 8px;
+  background: rgba(33, 150, 243, 0.04);
+}
+
+.lod-summary__title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #2196f3;
+  margin-bottom: 0.6rem;
+}
+
+.lod-summary__lanes {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.5rem;
+}
+
+.lod-lane-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.5rem 0.9rem;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: var(--surface);
+  min-width: 80px;
+}
+.lod-lane-card--pos { border-color: #4caf50; background: rgba(76,175,80,0.08); }
+.lod-lane-card--neg { border-color: #ff9800; background: rgba(255,152,0,0.06); }
+.lod-lane-card--missing { opacity: 0.45; }
+
+.lod-lane-card__label {
+  font-size: 0.8rem;
+  font-weight: 700;
+  font-family: monospace;
+}
+.lod-lane-card__status {
+  font-size: 0.75rem;
+}
+.lod-lane-card--pos .lod-lane-card__status { color: #4caf50; }
+.lod-lane-card--neg .lod-lane-card__status { color: #ff9800; }
+.lod-lane-card__intensity {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+}
+
+.lod-desc--none { color: #ff9800; }
+
+.lod-badge {
+  padding: 0.2rem 0.65rem;
+  background: rgba(33, 150, 243, 0.12);
+  border: 1px solid #2196f3;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: #2196f3;
+  font-weight: 600;
+}
+
+.lod-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin-top: 0.5rem;
+}
+
+.muted { color: var(--text-secondary); opacity: 0.6; }
+
+.row--muted td { opacity: 0.5; }
+.row--low-conc     { border-left: 3px solid #2196f3; }
+.row--low-conc-neg { border-left: 3px solid #ff9800; opacity: 0.75; }
+
+/* ── 상태 칩 ────────────────────────────────────────────────── */
+.chip {
+  display: inline-block;
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.chip--green  { background: rgba(76,175,80,0.12);  color: #4caf50; border: 1px solid #4caf50; }
+.chip--orange { background: rgba(255,152,0,0.12);  color: #ff9800; border: 1px solid #ff9800; }
+.chip--gray   { background: rgba(158,158,158,0.12); color: #9e9e9e; border: 1px solid #9e9e9e; }
+.chip--red    { background: rgba(229,57,53,0.12);  color: #e53935; border: 1px solid #e53935; }
 </style>
