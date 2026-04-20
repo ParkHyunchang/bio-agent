@@ -242,30 +242,57 @@
     <!-- ────────────── 탭 3: AI 에이전트 ────────────── -->
     <div v-if="activeTab === 'agent'" class="tab-content agent-tab">
 
+      <!-- 모바일 오버레이 -->
+      <div
+        class="session-overlay"
+        :class="{ 'session-overlay--show': isSidebarOpen }"
+        @click="isSidebarOpen = false"
+      ></div>
+
       <!-- 세션 사이드바 -->
       <aside class="session-sidebar" :class="{ 'session-sidebar--open': isSidebarOpen }">
         <div class="session-sidebar__header">
           <span class="session-sidebar__title">대화 목록</span>
-          <button class="btn-new-chat" @click="newChat">+ 새 대화</button>
+          <button class="btn-new-chat" @click="newChat(); isSidebarOpen = false">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            새 대화
+          </button>
         </div>
         <div class="session-list">
           <div v-if="sessionList.length === 0" class="session-empty">저장된 대화가 없습니다</div>
-          <div
-            v-for="s in sessionList"
-            :key="s.sessionId"
-            class="session-item"
-            :class="{ 'session-item--active': s.sessionId === agentSessionId }"
-            @click="selectSession(s.sessionId)"
-          >
-            <div class="session-item__preview">{{ s.preview }}</div>
-            <div class="session-item__date">{{ formatSessionDate(s.updatedAt) }}</div>
-          </div>
+          <template v-for="(group, gi) in groupedSessions" :key="gi">
+            <div class="session-group-label">{{ group.label }}</div>
+            <div
+              v-for="s in group.items"
+              :key="s.sessionId"
+              class="session-item"
+              :class="{ 'session-item--active': s.sessionId === agentSessionId }"
+              @click="selectSession(s.sessionId); isSidebarOpen = false"
+            >
+              <div class="session-item__body">
+                <div class="session-item__title">{{ s.preview }}</div>
+              </div>
+              <button
+                class="btn-delete-session"
+                @click.stop="deleteSession(s.sessionId)"
+                title="삭제"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <polyline points="3 6 5 6 21 6"/>
+                  <path d="M19 6l-1 14H6L5 6"/>
+                  <path d="M10 11v6"/><path d="M14 11v6"/>
+                  <path d="M9 6V4h6v2"/>
+                </svg>
+              </button>
+            </div>
+          </template>
         </div>
       </aside>
 
       <!-- 채팅 영역 -->
       <section class="agent-section">
         <div class="agent-header">
+          <!-- 모바일 전용 햄버거 -->
           <button class="btn-sidebar-toggle" @click="isSidebarOpen = !isSidebarOpen" title="대화 목록">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
@@ -290,9 +317,7 @@
             이미지를 여기에 드래그하거나 아래 버튼으로 첨부하세요.<br>
             <span style="font-size:0.8rem;opacity:0.6">예: "이미지 분석해줘", "Ct값 28이면 양성인가요?"</span>
           </div>
-          <div v-if="isDragOverChat" class="chat-drop-hint">
-            이미지를 놓으세요
-          </div>
+          <div v-if="isDragOverChat" class="chat-drop-hint">이미지를 놓으세요</div>
           <div
             v-for="(msg, i) in agentMessages"
             :key="i"
@@ -395,6 +420,32 @@ export default {
     this.loadModelStatus()
     this.loadAgentHistory()
     this.loadSessionList()
+  },
+  computed: {
+    groupedSessions() {
+      const now = new Date()
+      const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const startOfYesterday = new Date(startOfToday - 86400000)
+      const startOf7Days = new Date(startOfToday - 6 * 86400000)
+      const startOf30Days = new Date(startOfToday - 29 * 86400000)
+
+      const groups = [
+        { label: '오늘', items: [] },
+        { label: '어제', items: [] },
+        { label: '이전 7일', items: [] },
+        { label: '이전 30일', items: [] },
+        { label: '더 오래된 대화', items: [] },
+      ]
+      for (const s of this.sessionList) {
+        const d = new Date(s.updatedAt)
+        if (d >= startOfToday)         groups[0].items.push(s)
+        else if (d >= startOfYesterday) groups[1].items.push(s)
+        else if (d >= startOf7Days)     groups[2].items.push(s)
+        else if (d >= startOf30Days)    groups[3].items.push(s)
+        else                            groups[4].items.push(s)
+      }
+      return groups.filter(g => g.items.length > 0)
+    }
   },
   methods: {
     // ── 파일 선택 ────────────────────────────────────────────────
@@ -600,6 +651,15 @@ export default {
       this.agentInput = ''
       this.agentFile = null
       localStorage.removeItem('agentSessionId')
+    },
+    async deleteSession(sessionId) {
+      await api.delete(`/api/agent/session/${sessionId}`).catch(() => {})
+      if (this.agentSessionId === sessionId) {
+        this.agentSessionId = null
+        this.agentMessages = []
+        localStorage.removeItem('agentSessionId')
+      }
+      this.loadSessionList()
     },
     scrollChat() {
       const el = this.$refs.chatHistory
@@ -936,112 +996,168 @@ export default {
 }
 
 /* ── AI 에이전트 탭 ──────────────────────────────────────────── */
+.agent-tab {
+  height: calc(100vh - 200px);
+  display: flex;
+  flex-direction: row;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 세션 사이드바 - 데스크탑: 항상 표시 */
+.session-overlay { display: none; }
+
+.session-sidebar {
+  width: 230px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--card-border);
+  background: var(--surface);
+}
+.session-sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 0.75rem 0.6rem;
+  border-bottom: 1px solid var(--card-border);
+  gap: 0.5rem;
+}
+.session-sidebar__title {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+.btn-new-chat {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.65rem;
+  background: transparent;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-new-chat:hover { border-color: var(--accent); color: var(--accent); background: rgba(76,175,80,0.06); }
+
+.session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.4rem 0;
+}
+.session-empty {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  padding: 1.5rem 0.75rem;
+  line-height: 1.6;
+}
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.55rem 0.6rem 0.55rem 0.75rem;
+  cursor: pointer;
+  border-radius: 7px;
+  margin: 0.1rem 0.35rem;
+  transition: background 0.15s;
+}
+.session-item:hover { background: rgba(128,128,128,0.08); }
+.session-item--active { background: rgba(76, 175, 80, 0.12); }
+.session-group-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.65rem 0.75rem 0.25rem;
+  opacity: 0.7;
+}
+.session-item__body { flex: 1; min-width: 0; }
+.session-item__title {
+  font-size: 0.83rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+.btn-delete-session {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+  align-items: center;
+  justify-content: center;
+}
+.session-item:hover .btn-delete-session { display: flex; }
+.btn-delete-session:hover { color: #e53935; }
+
+/* 채팅 영역 */
+.agent-section { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
 .agent-header {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 0.25rem;
 }
-
-.btn-new-chat {
-  padding: 0.25rem 0.75rem;
-  background: transparent;
-  border: 1px solid var(--card-border);
-  border-radius: 999px;
-  color: var(--text-secondary);
-  font-size: 0.78rem;
-  cursor: pointer;
-  transition: border-color 0.2s, color 0.2s;
-  white-space: nowrap;
-}
-.btn-new-chat:hover { border-color: var(--accent); color: var(--accent); }
-
 .btn-sidebar-toggle {
+  display: none; /* 데스크탑에서는 숨김 */
   background: none;
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
   padding: 0.25rem;
   border-radius: 6px;
-  display: flex;
   align-items: center;
   transition: color 0.2s;
   flex-shrink: 0;
 }
 .btn-sidebar-toggle:hover { color: var(--accent); }
 
-.agent-tab {
-  height: calc(100vh - 200px);
-  display: flex;
-  flex-direction: row;
-  gap: 0;
-  position: relative;
-  overflow: hidden;
-}
+/* 모바일 반응형 */
+@media (max-width: 640px) {
+  .agent-tab { height: calc(100vh - 160px); }
 
-/* 세션 사이드바 */
-.session-sidebar {
-  width: 0;
-  overflow: hidden;
-  transition: width 0.25s ease;
-  display: flex;
-  flex-direction: column;
-  border-right: 0 solid var(--card-border);
-  background: var(--surface);
-  flex-shrink: 0;
-}
-.session-sidebar--open {
-  width: 220px;
-  border-right-width: 1px;
-}
-.session-sidebar__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0.75rem;
-  border-bottom: 1px solid var(--card-border);
-  gap: 0.5rem;
-}
-.session-sidebar__title {
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  white-space: nowrap;
-}
-.session-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0.5rem 0;
-}
-.session-empty {
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 0.78rem;
-  padding: 1rem;
-}
-.session-item {
-  padding: 0.6rem 0.75rem;
-  cursor: pointer;
-  border-radius: 6px;
-  margin: 0 0.25rem;
-  transition: background 0.15s;
-}
-.session-item:hover { background: rgba(128,128,128,0.08); }
-.session-item--active { background: rgba(76, 175, 80, 0.12); }
-.session-item__preview {
-  font-size: 0.82rem;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.session-item__date {
-  font-size: 0.72rem;
-  color: var(--text-secondary);
-  margin-top: 0.2rem;
-}
+  .session-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 199;
+    background: rgba(0,0,0,0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s;
+  }
+  .session-overlay--show { opacity: 1; pointer-events: auto; }
 
-.agent-section { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+  .session-sidebar {
+    position: fixed;
+    left: 0; top: 0; bottom: 0;
+    width: 78%;
+    max-width: 280px;
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    border-right: 1px solid var(--card-border);
+  }
+  .session-sidebar--open { transform: translateX(0); }
+
+  .btn-sidebar-toggle { display: flex; }
+  .btn-delete-session { display: flex; } /* 모바일: 항상 표시 */
+}
 
 .chat-history {
   flex: 1;
