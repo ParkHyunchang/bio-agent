@@ -15,7 +15,7 @@
         :class="{ 'tab-btn--active': activeTab === 'train' }"
         @click="activeTab = 'train'"
       >
-        훈련 데이터 관리
+        학습 데이터 관리
       </button>
       <button
         class="tab-btn"
@@ -34,7 +34,7 @@
       </div>
     </div>
 
-    <!-- ────────────── 탭 1: 훈련 데이터 관리 ────────────── -->
+    <!-- ────────────── 탭 1: 학습 데이터 관리 ────────────── -->
     <div v-if="activeTab === 'train'" class="tab-content">
 
       <!-- 업로드 폼 -->
