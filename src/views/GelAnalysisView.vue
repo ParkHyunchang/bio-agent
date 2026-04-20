@@ -571,7 +571,7 @@ export default {
       try {
         const { data } = await api.get(`/api/agent/session/${sessionId}/history`)
         if (Array.isArray(data)) {
-          this.agentMessages = data.map(m => ({ role: m.role, text: m.text, hadImage: !!m.hadImage }))
+          this.agentMessages = data.map(m => ({ role: m.role, text: m.text, hadImage: !!m.hadImage, imageUrl: m.imageUrl || null }))
         }
       } catch { /* 무시 */ }
       this.$nextTick(() => this.scrollChat())
@@ -593,7 +593,7 @@ export default {
         this.agentSessionId = sid
         const { data } = await api.get(`/api/agent/session/${sid}/history`)
         if (Array.isArray(data) && data.length) {
-          this.agentMessages = data.map(m => ({ role: m.role, text: m.text, hadImage: !!m.hadImage }))
+          this.agentMessages = data.map(m => ({ role: m.role, text: m.text, hadImage: !!m.hadImage, imageUrl: m.imageUrl || null }))
           this.$nextTick(() => this.scrollChat())
         }
       } catch { /* 무시 */ }
