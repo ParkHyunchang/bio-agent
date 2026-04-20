@@ -5,17 +5,17 @@
     <div class="tab-bar">
       <button
         class="tab-btn"
-        :class="{ 'tab-btn--active': activeTab === 'train' }"
-        @click="activeTab = 'train'"
-      >
-        훈련 데이터 관리
-      </button>
-      <button
-        class="tab-btn"
         :class="{ 'tab-btn--active': activeTab === 'predict' }"
         @click="activeTab = 'predict'"
       >
         Ct값 예측
+      </button>
+      <button
+        class="tab-btn"
+        :class="{ 'tab-btn--active': activeTab === 'train' }"
+        @click="activeTab = 'train'"
+      >
+        훈련 데이터 관리
       </button>
       <button
         class="tab-btn"
@@ -382,7 +382,7 @@ export default {
   name: 'GelAnalysisView',
   data() {
     return {
-      activeTab: 'train',
+      activeTab: 'predict',
 
       // 훈련 데이터 업로드
       selectedFile: null,
