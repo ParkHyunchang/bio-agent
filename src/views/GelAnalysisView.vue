@@ -17,6 +17,13 @@
       >
         Ct값 예측
       </button>
+      <button
+        class="tab-btn"
+        :class="{ 'tab-btn--active': activeTab === 'agent' }"
+        @click="activeTab = 'agent'"
+      >
+        AI 에이전트
+      </button>
 
       <!-- 모델 상태 배지 -->
       <div class="model-badge" :class="modelStatus.trained ? 'model-badge--ok' : 'model-badge--none'">
@@ -232,6 +239,110 @@
       </section>
     </div>
 
+    <!-- ────────────── 탭 3: AI 에이전트 ────────────── -->
+    <div v-if="activeTab === 'agent'" class="tab-content agent-tab">
+
+      <!-- 세션 사이드바 -->
+      <aside class="session-sidebar" :class="{ 'session-sidebar--open': isSidebarOpen }">
+        <div class="session-sidebar__header">
+          <span class="session-sidebar__title">대화 목록</span>
+          <button class="btn-new-chat" @click="newChat">+ 새 대화</button>
+        </div>
+        <div class="session-list">
+          <div v-if="sessionList.length === 0" class="session-empty">저장된 대화가 없습니다</div>
+          <div
+            v-for="s in sessionList"
+            :key="s.sessionId"
+            class="session-item"
+            :class="{ 'session-item--active': s.sessionId === agentSessionId }"
+            @click="selectSession(s.sessionId)"
+          >
+            <div class="session-item__preview">{{ s.preview }}</div>
+            <div class="session-item__date">{{ formatSessionDate(s.updatedAt) }}</div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 채팅 영역 -->
+      <section class="agent-section">
+        <div class="agent-header">
+          <button class="btn-sidebar-toggle" @click="isSidebarOpen = !isSidebarOpen" title="대화 목록">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+          <h2 class="section-title" style="margin:0">AI 에이전트</h2>
+        </div>
+        <p class="section-desc">
+          PCR 젤 이미지를 첨부하거나 질문을 입력하면 AI 에이전트가 분석하고 해석해드립니다.
+        </p>
+
+        <!-- 대화 기록 -->
+        <div
+          class="chat-history"
+          ref="chatHistory"
+          :class="{ 'chat-history--drag': isDragOverChat }"
+          @dragover.prevent="isDragOverChat = true"
+          @dragleave.prevent="isDragOverChat = false"
+          @drop.prevent="onChatDrop"
+        >
+          <div v-if="agentMessages.length === 0" class="chat-empty">
+            이미지를 여기에 드래그하거나 아래 버튼으로 첨부하세요.<br>
+            <span style="font-size:0.8rem;opacity:0.6">예: "이미지 분석해줘", "Ct값 28이면 양성인가요?"</span>
+          </div>
+          <div v-if="isDragOverChat" class="chat-drop-hint">
+            이미지를 놓으세요
+          </div>
+          <div
+            v-for="(msg, i) in agentMessages"
+            :key="i"
+            class="chat-msg"
+            :class="msg.role === 'user' ? 'chat-msg--user' : 'chat-msg--agent'"
+          >
+            <div class="chat-msg__bubble">
+              <img v-if="msg.imageUrl" :src="msg.imageUrl" class="chat-msg__image" alt="첨부 이미지" />
+              <div v-if="msg.role === 'agent'" class="chat-msg__text" v-html="renderMarkdown(msg.text)"></div>
+              <div v-else class="chat-msg__text">{{ msg.text }}</div>
+            </div>
+          </div>
+          <div v-if="isAgentLoading" class="chat-msg chat-msg--agent">
+            <div class="chat-msg__bubble chat-msg__bubble--loading">
+              <span class="dot-pulse"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 입력 영역 -->
+        <div class="chat-input-area">
+          <label class="attach-btn" title="이미지 첨부">
+            <input ref="agentFileInput" type="file" accept="image/*" style="display:none" @change="onAgentFileChange" />
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/>
+            </svg>
+          </label>
+          <div class="chat-input-wrap">
+            <div v-if="agentFile" class="agent-file-chip">
+              <span>{{ agentFile.name }}</span>
+              <button @click="agentFile = null">×</button>
+            </div>
+            <textarea
+              v-model="agentInput"
+              class="chat-input"
+              placeholder="질문을 입력하세요..."
+              rows="1"
+              @keydown.enter.exact.prevent="sendToAgent"
+              @input="autoResize"
+            ></textarea>
+          </div>
+          <button class="send-btn" :disabled="(!agentInput.trim() && !agentFile) || isAgentLoading" @click="sendToAgent">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/>
+            </svg>
+          </button>
+        </div>
+      </section>
+    </div>
+
   </div>
 </template>
 
@@ -266,12 +377,24 @@ export default {
       predictResult: null,
 
       // 모델 상태
-      modelStatus: { trained: false }
+      modelStatus: { trained: false },
+
+      // AI 에이전트
+      agentMessages: [],
+      agentInput: '',
+      agentFile: null,
+      isAgentLoading: false,
+      agentSessionId: null,
+      isDragOverChat: false,
+      sessionList: [],
+      isSidebarOpen: false
     }
   },
   mounted() {
     this.loadRecords()
     this.loadModelStatus()
+    this.loadAgentHistory()
+    this.loadSessionList()
   },
   methods: {
     // ── 파일 선택 ────────────────────────────────────────────────
@@ -380,6 +503,125 @@ export default {
       } catch {
         this.modelStatus = { trained: false }
       }
+    },
+
+    // ── AI 에이전트 ─────────────────────────────────────────────
+    async loadSessionList() {
+      try {
+        const { data } = await api.get('/api/agent/sessions')
+        this.sessionList = data
+      } catch { /* 무시 */ }
+    },
+    async selectSession(sessionId) {
+      if (sessionId === this.agentSessionId) return
+      this.agentSessionId = sessionId
+      localStorage.setItem('agentSessionId', sessionId)
+      this.agentMessages = []
+      try {
+        const { data } = await api.get(`/api/agent/session/${sessionId}/history`)
+        if (Array.isArray(data)) {
+          this.agentMessages = data.map(m => ({ role: m.role, text: m.text, hadImage: !!m.hadImage }))
+        }
+      } catch { /* 무시 */ }
+      this.$nextTick(() => this.scrollChat())
+    },
+    formatSessionDate(dateStr) {
+      if (!dateStr) return ''
+      const d = new Date(dateStr)
+      const now = new Date()
+      const diff = now - d
+      if (diff < 60000) return '방금'
+      if (diff < 3600000) return `${Math.floor(diff / 60000)}분 전`
+      if (diff < 86400000) return `${Math.floor(diff / 3600000)}시간 전`
+      return `${d.getMonth() + 1}/${d.getDate()}`
+    },
+    async loadAgentHistory() {
+      try {
+        const sid = localStorage.getItem('agentSessionId')
+        if (!sid) return
+        this.agentSessionId = sid
+        const { data } = await api.get(`/api/agent/session/${sid}/history`)
+        if (Array.isArray(data) && data.length) {
+          this.agentMessages = data.map(m => ({ role: m.role, text: m.text, hadImage: !!m.hadImage }))
+          this.$nextTick(() => this.scrollChat())
+        }
+      } catch { /* 무시 */ }
+    },
+    onChatDrop(e) {
+      this.isDragOverChat = false
+      const file = e.dataTransfer.files[0]
+      if (file && file.type.startsWith('image/')) {
+        this.agentFile = file
+      }
+    },
+    onAgentFileChange(e) {
+      this.agentFile = e.target.files[0] || null
+      this.$refs.agentFileInput.value = ''
+    },
+    async sendToAgent() {
+      const text = this.agentInput.trim()
+      if (!text && !this.agentFile) return
+      if (this.isAgentLoading) return
+
+      const file = this.agentFile
+      const imageUrl = file ? URL.createObjectURL(file) : null
+
+      // 사용자 메시지 추가
+      this.agentMessages.push({ role: 'user', text: text || '(이미지 분석 요청)', imageUrl })
+      this.agentInput = ''
+      this.agentFile = null
+      this.isAgentLoading = true
+      this.$nextTick(() => this.scrollChat())
+
+      try {
+        const form = new FormData()
+        form.append('message', text || '이 이미지를 분석해주세요.')
+        if (file) form.append('file', file)
+        if (this.agentSessionId) form.append('sessionId', this.agentSessionId)
+
+        const { data } = await api.post('/api/agent/chat', form)
+        this.agentSessionId = data.sessionId
+        this.agentMessages.push({ role: 'agent', text: data.message })
+      } catch (e) {
+        this.agentMessages.push({
+          role: 'agent',
+          text: '오류가 발생했습니다: ' + (e.response?.data?.message || e.message)
+        })
+      } finally {
+        this.isAgentLoading = false
+        if (this.agentSessionId) localStorage.setItem('agentSessionId', this.agentSessionId)
+        this.$nextTick(() => this.scrollChat())
+        this.loadSessionList()
+      }
+    },
+    newChat() {
+      this.agentSessionId = null
+      this.agentMessages = []
+      this.agentInput = ''
+      this.agentFile = null
+      localStorage.removeItem('agentSessionId')
+    },
+    scrollChat() {
+      const el = this.$refs.chatHistory
+      if (el) el.scrollTop = el.scrollHeight
+    },
+    autoResize(e) {
+      const el = e.target
+      el.style.height = 'auto'
+      el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+    },
+    renderMarkdown(text) {
+      let html = text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+      // ## 헤딩
+      html = html.replace(/^## (.+)$/gm, '<strong class="md-heading">$1</strong>')
+      // **bold**
+      html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      // 줄바꿈
+      html = html.replace(/\n/g, '<br>')
+      return html
     },
 
     // ── 유틸 ────────────────────────────────────────────────────
@@ -692,4 +934,278 @@ export default {
   .ct-input-group { min-width: unset; }
   .predict-result__ct { flex-direction: column; gap: 0.25rem; }
 }
+
+/* ── AI 에이전트 탭 ──────────────────────────────────────────── */
+.agent-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.btn-new-chat {
+  padding: 0.25rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  white-space: nowrap;
+}
+.btn-new-chat:hover { border-color: var(--accent); color: var(--accent); }
+
+.btn-sidebar-toggle {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+.btn-sidebar-toggle:hover { color: var(--accent); }
+
+.agent-tab {
+  height: calc(100vh - 200px);
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* 세션 사이드바 */
+.session-sidebar {
+  width: 0;
+  overflow: hidden;
+  transition: width 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  border-right: 0 solid var(--card-border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.session-sidebar--open {
+  width: 220px;
+  border-right-width: 1px;
+}
+.session-sidebar__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--card-border);
+  gap: 0.5rem;
+}
+.session-sidebar__title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.session-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0;
+}
+.session-empty {
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  padding: 1rem;
+}
+.session-item {
+  padding: 0.6rem 0.75rem;
+  cursor: pointer;
+  border-radius: 6px;
+  margin: 0 0.25rem;
+  transition: background 0.15s;
+}
+.session-item:hover { background: rgba(128,128,128,0.08); }
+.session-item--active { background: rgba(76, 175, 80, 0.12); }
+.session-item__preview {
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-item__date {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  margin-top: 0.2rem;
+}
+
+.agent-section { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+
+.chat-history {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: var(--bg);
+  margin-bottom: 0.75rem;
+  min-height: 300px;
+  max-height: calc(100vh - 380px);
+  transition: border-color 0.15s, background 0.15s;
+}
+.chat-history--drag {
+  border-color: var(--accent);
+  background: rgba(76, 175, 80, 0.04);
+}
+
+.chat-empty {
+  margin: auto;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  line-height: 1.8;
+}
+
+.chat-drop-hint {
+  position: sticky;
+  bottom: 0;
+  text-align: center;
+  padding: 0.5rem;
+  color: var(--accent);
+  font-size: 0.85rem;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.chat-msg { display: flex; }
+.chat-msg--user  { justify-content: flex-end; }
+.chat-msg--agent { justify-content: flex-start; }
+
+.chat-msg__bubble {
+  max-width: 75%;
+  padding: 0.65rem 0.9rem;
+  border-radius: 12px;
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+
+.chat-msg--user  .chat-msg__bubble { background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+.chat-msg--agent .chat-msg__bubble { background: var(--surface); border: 1px solid var(--card-border); border-bottom-left-radius: 4px; }
+
+.chat-msg__image {
+  display: block;
+  max-width: 200px;
+  max-height: 150px;
+  border-radius: 6px;
+  margin-bottom: 0.4rem;
+  object-fit: cover;
+}
+
+.chat-msg__bubble--loading { padding: 0.75rem 1.2rem; }
+
+/* 점 로딩 애니메이션 */
+.dot-pulse {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  animation: dot-pulse 1.2s infinite;
+  position: relative;
+}
+.dot-pulse::before,
+.dot-pulse::after {
+  content: '';
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  position: absolute;
+  top: 0;
+}
+.dot-pulse::before { left: -14px; animation: dot-pulse 1.2s 0.2s infinite; }
+.dot-pulse::after  { left: 14px;  animation: dot-pulse 1.2s 0.4s infinite; }
+
+@keyframes dot-pulse {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40% { opacity: 1; transform: scale(1); }
+}
+
+/* 입력 영역 */
+.chat-input-area {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.attach-btn {
+  padding: 0.5rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 6px;
+  transition: color 0.2s;
+  flex-shrink: 0;
+}
+.attach-btn:hover { color: var(--accent); }
+
+.chat-input-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.agent-file-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.78rem;
+  color: var(--accent);
+  background: rgba(var(--accent-rgb, 76,175,80), 0.1);
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  width: fit-content;
+}
+.agent-file-chip button {
+  background: none; border: none; color: var(--accent);
+  cursor: pointer; font-size: 1rem; line-height: 1; padding: 0;
+}
+
+.chat-input {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  resize: none;
+  line-height: 1.5;
+  font-family: inherit;
+}
+
+.send-btn {
+  padding: 0.5rem 0.75rem;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity 0.2s;
+}
+.send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+:deep(.md-heading) { display: block; margin: 0.5rem 0 0.25rem; font-size: 0.95rem; }
 </style>
