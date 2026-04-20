@@ -39,7 +39,7 @@
 
       <!-- 업로드 폼 -->
       <section class="upload-section">
-        <h2 class="section-title">훈련 데이터 등록</h2>
+        <h2 class="section-title">학습 데이터 등록</h2>
         <p class="section-desc">PCR 젤 이미지와 외부 기관에서 측정한 qPCR Ct값을 함께 업로드합니다.</p>
 
         <div class="upload-row">
@@ -114,33 +114,53 @@
             <span v-else>학습 실행 ({{ records.length }}개)</span>
           </button>
         </div>
-        <p class="section-desc">저장된 훈련 데이터 전체를 사용해 회귀 모델을 재학습합니다. 최소 3개 이상 필요.</p>
+        <p class="section-desc">저장된 학습 데이터 전체를 사용해 회귀 모델을 재학습합니다. 최소 3개 이상 필요.</p>
 
         <div v-if="trainResult" class="result-box result-box--info">
           <strong>학습 완료</strong> · 모델: {{ trainResult.model_type }}
-          · 훈련 R²: {{ trainResult.train_r2 }}
+          · 학습 R²: {{ trainResult.train_r2 }}
           · CV R²: {{ trainResult.cv_r2_mean }} ± {{ trainResult.cv_r2_std }}
           · RMSE: {{ trainResult.train_rmse }} Ct
           · 샘플: {{ trainResult.sample_count }}개
         </div>
       </section>
 
-      <!-- 훈련 데이터 목록 -->
+      <!-- 학습 데이터 목록 -->
       <section class="records-section">
-        <h2 class="section-title">훈련 데이터 목록</h2>
+        <div class="records-header">
+          <h2 class="section-title">학습 데이터 목록</h2>
+          <button
+            v-if="selectedIds.length > 0"
+            class="btn-delete-selected"
+            :disabled="isDeleting"
+            @click="deleteSelected"
+          >
+            <span v-if="isDeleting" class="spinner spinner--sm spinner--red"></span>
+            <span v-else>선택 삭제 ({{ selectedIds.length }}개)</span>
+          </button>
+        </div>
 
         <div v-if="isLoadingRecords" class="list-loading">
           <div class="spinner"></div>
         </div>
 
         <div v-else-if="records.length === 0" class="list-empty">
-          등록된 훈련 데이터가 없습니다.
+          등록된 학습 데이터가 없습니다.
         </div>
 
         <div v-else class="records-table-wrap">
           <table class="records-table">
             <thead>
               <tr>
+                <th class="col-check">
+                  <input
+                    type="checkbox"
+                    class="row-checkbox"
+                    :checked="allSelected"
+                    :ref="el => { if (el) el.indeterminate = someSelected }"
+                    @change="toggleSelectAll"
+                  />
+                </th>
                 <th>파일명</th>
                 <th>Ct값</th>
                 <th>밝기</th>
@@ -151,14 +171,27 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in records" :key="r.id" :class="{ 'row--warn': r.warning }">
+              <tr
+                v-for="r in records"
+                :key="r.id"
+                :class="{ 'row--warn': r.warning, 'row--selected': selectedIds.includes(r.id) }"
+                @click="toggleSelect(r.id)"
+              >
+                <td class="col-check" @click.stop>
+                  <input
+                    type="checkbox"
+                    class="row-checkbox"
+                    :value="r.id"
+                    v-model="selectedIds"
+                  />
+                </td>
                 <td class="col-name">{{ r.fileName }}</td>
                 <td class="col-ct">{{ r.ctValue }}</td>
                 <td>{{ fmt(r.bandIntensity) }}</td>
                 <td>{{ fmt(r.bandArea) }}</td>
                 <td>{{ fmt(r.relativeIntensity) }}</td>
                 <td class="col-date">{{ formatDate(r.createdAt) }}</td>
-                <td>
+                <td @click.stop>
                   <button class="btn-delete" @click="deleteRecord(r.id)">삭제</button>
                 </td>
               </tr>
@@ -172,68 +205,121 @@
     <div v-if="activeTab === 'predict'" class="tab-content">
       <section class="predict-section">
         <h2 class="section-title">새 이미지로 Ct값 예측</h2>
-        <p class="section-desc">PCR 젤 이미지를 업로드하면 학습된 모델이 qPCR Ct값을 예측합니다.</p>
+        <p class="section-desc">PCR 젤 이미지를 여러 장 업로드하면 학습된 모델이 qPCR Ct값을 예측합니다. 예측 후 학습 데이터로 일괄 등록할 수 있습니다.</p>
 
         <div v-if="!modelStatus.trained" class="result-box result-box--warn">
-          모델이 아직 학습되지 않았습니다. 훈련 데이터 탭에서 데이터를 등록하고 학습을 실행하세요.
+          모델이 아직 학습되지 않았습니다. 학습 데이터 탭에서 데이터를 등록하고 학습을 실행하세요.
         </div>
 
-        <div class="upload-row">
-          <div
-            class="upload-area"
-            :class="{ 'upload-area--drag': isPredictDragging }"
-            @dragover.prevent="isPredictDragging = true"
-            @dragleave.prevent="isPredictDragging = false"
-            @drop.prevent="onPredictDrop"
+        <!-- 업로드 영역 -->
+        <div
+          class="upload-area upload-area--wide"
+          :class="{ 'upload-area--drag': isPredictDragging }"
+          @dragover.prevent="isPredictDragging = true"
+          @dragleave.prevent="isPredictDragging = false"
+          @drop.prevent="onPredictDrop"
+        >
+          <input
+            ref="predictFileInput"
+            type="file"
+            accept="image/*"
+            multiple
+            class="upload-area__input"
+            @change="onPredictFilesChange"
+          />
+          <div class="upload-area__inner" @click="$refs.predictFileInput.click()">
+            <div class="upload-area__icon">🔬</div>
+            <p class="upload-area__text">젤 이미지를 끌어다 놓거나 클릭 (여러 장 가능)</p>
+            <p class="upload-area__sub">JPG, PNG · 최대 20MB · 복수 선택 가능</p>
+          </div>
+        </div>
+
+        <!-- 액션 버튼 -->
+        <div v-if="predictItems.length > 0" class="predict-actions">
+          <span class="predict-count">{{ predictItems.length }}개 이미지</span>
+          <button
+            class="btn-secondary"
+            :disabled="!hasPendingItems || isAnyPredicting || !modelStatus.trained"
+            @click="predictAll"
           >
-            <input
-              ref="predictFileInput"
-              type="file"
-              accept="image/*"
-              class="upload-area__input"
-              @change="onPredictFileChange"
-            />
-            <div class="upload-area__inner" @click="$refs.predictFileInput.click()">
-              <div class="upload-area__icon">🔬</div>
-              <p class="upload-area__text">예측할 젤 이미지 선택</p>
-              <p class="upload-area__sub">JPG, PNG · 최대 20MB</p>
-            </div>
-          </div>
-
-          <div class="ct-input-group">
-            <p v-if="predictFile" class="file-chip">
-              <span>{{ predictFile.name }}</span>
-              <button class="file-chip__remove" @click="predictFile = null">×</button>
-            </p>
-            <button
-              class="btn-primary"
-              :disabled="!predictFile || isPredicting || !modelStatus.trained"
-              @click="predictCt"
-            >
-              <span v-if="isPredicting" class="spinner"></span>
-              <span v-else>예측하기</span>
-            </button>
-          </div>
+            <span v-if="isAnyPredicting" class="spinner spinner--dark"></span>
+            <span v-else>모두 예측</span>
+          </button>
+          <button
+            class="btn-primary"
+            :disabled="doneItems.length === 0 || isRegisteringAll"
+            @click="registerAllAsTraining"
+          >
+            <span v-if="isRegisteringAll" class="spinner"></span>
+            <span v-else>학습 데이터에 일괄 등록 ({{ doneItems.length }}개)</span>
+          </button>
+          <button class="btn-clear" @click="clearAllPredictItems">전체 삭제</button>
         </div>
 
-        <!-- 예측 결과 -->
-        <div v-if="predictResult" class="predict-result">
-          <div class="predict-result__ct">
-            <span class="predict-result__label">예측 Ct값</span>
-            <span class="predict-result__value">{{ predictResult.predictedCt }}</span>
-          </div>
-          <div class="predict-result__meta">
-            <span>모델 R²: {{ predictResult.modelR2 }}</span>
-            <span>RMSE: ±{{ predictResult.modelRmse }} Ct</span>
-          </div>
-          <div v-if="predictResult.features" class="predict-result__features">
-            <div class="feature-chip">밝기 {{ fmt(predictResult.features.band_intensity) }}</div>
-            <div class="feature-chip">면적 {{ fmt(predictResult.features.band_area) }}</div>
-            <div class="feature-chip">상대강도 {{ fmt(predictResult.features.relative_intensity) }}</div>
-            <div class="feature-chip">너비 {{ fmt(predictResult.features.band_width) }}</div>
-          </div>
-          <div v-if="predictResult.features?.warning" class="warn-text">
-            ⚠ {{ predictResult.features.warning }}
+        <!-- 일괄 등록 결과 -->
+        <div v-if="registerResult" class="result-box" :class="registerResult.errors > 0 ? 'result-box--warn' : 'result-box--success'">
+          일괄 등록 완료: {{ registerResult.success }}개 성공
+          <span v-if="registerResult.duplicates > 0"> · {{ registerResult.duplicates }}개 중복(건너뜀)</span>
+          <span v-if="registerResult.errors > 0"> · {{ registerResult.errors }}개 실패</span>
+        </div>
+
+        <!-- 아이템 목록 -->
+        <div v-if="predictItems.length > 0" class="predict-items">
+          <div
+            v-for="(item, idx) in predictItems"
+            :key="idx"
+            class="predict-item"
+            :class="{
+              'predict-item--error': item.status === 'error',
+              'predict-item--done': item.status === 'done',
+              'predict-item--registered': item.status === 'registered',
+              'predict-item--duplicate': item.status === 'duplicate'
+            }"
+          >
+            <img :src="item.imageUrl" class="predict-item__thumb" alt="미리보기" />
+
+            <div class="predict-item__info">
+              <p class="predict-item__name">{{ item.file.name }}</p>
+              <span class="predict-item__status" :class="`status--${item.status}`">
+                <span v-if="item.status === 'pending'">대기 중</span>
+                <span v-else-if="item.status === 'predicting'" class="status-predicting">
+                  <span class="spinner spinner--sm spinner--dark"></span> 예측 중...
+                </span>
+                <span v-else-if="item.status === 'done'">예측 완료</span>
+                <span v-else-if="item.status === 'registered'">등록 완료</span>
+                <span v-else-if="item.status === 'duplicate'">이미 등록된 이미지</span>
+                <span v-else-if="item.status === 'error'">오류: {{ item.errorMsg }}</span>
+              </span>
+              <div v-if="item.status === 'done' || item.status === 'registered'" class="predict-item__features">
+                <span class="feature-chip">밝기 {{ fmt(item.result?.features?.band_intensity) }}</span>
+                <span class="feature-chip">면적 {{ fmt(item.result?.features?.band_area) }}</span>
+                <span class="feature-chip">상대강도 {{ fmt(item.result?.features?.relative_intensity) }}</span>
+              </div>
+            </div>
+
+            <div v-if="item.status === 'done' || item.status === 'registered'" class="predict-item__ct-wrap">
+              <span class="predict-item__ct-label">예측 Ct</span>
+              <span class="predict-item__ct-value">{{ item.result?.predictedCt }}</span>
+            </div>
+
+            <div v-if="item.status === 'done'" class="predict-item__edit">
+              <label class="predict-item__edit-label">등록 Ct값</label>
+              <input
+                v-model.number="item.editCt"
+                type="number"
+                step="0.01"
+                min="0"
+                max="50"
+                class="ct-input ct-input--sm"
+                placeholder="Ct값"
+              />
+            </div>
+
+            <button
+              class="btn-delete"
+              :disabled="item.status === 'predicting'"
+              @click="removePredictItem(idx)"
+            >삭제</button>
           </div>
         </div>
       </section>
@@ -384,26 +470,28 @@ export default {
     return {
       activeTab: 'predict',
 
-      // 훈련 데이터 업로드
+      // 학습 데이터 업로드
       selectedFile: null,
       ctValue: null,
       isDragging: false,
       isUploading: false,
       uploadResult: null,
 
-      // 훈련
+      // 학습
       isTraining: false,
       trainResult: null,
 
       // 목록
       records: [],
       isLoadingRecords: false,
+      selectedIds: [],
+      isDeleting: false,
 
       // 예측
-      predictFile: null,
+      predictItems: [],
       isPredictDragging: false,
-      isPredicting: false,
-      predictResult: null,
+      isRegisteringAll: false,
+      registerResult: null,
 
       // 모델 상태
       modelStatus: { trained: false },
@@ -428,6 +516,21 @@ export default {
     this.loadSessionList()
   },
   computed: {
+    allSelected() {
+      return this.records.length > 0 && this.selectedIds.length === this.records.length
+    },
+    someSelected() {
+      return this.selectedIds.length > 0 && this.selectedIds.length < this.records.length
+    },
+    hasPendingItems() {
+      return this.predictItems.some(i => i.status === 'pending')
+    },
+    isAnyPredicting() {
+      return this.predictItems.some(i => i.status === 'predicting')
+    },
+    doneItems() {
+      return this.predictItems.filter(i => i.status === 'done')
+    },
     groupedSessions() {
       const now = new Date()
       const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
@@ -468,16 +571,85 @@ export default {
       this.$refs.fileInput.value = ''
     },
 
-    onPredictFileChange(e) {
-      this.predictFile = e.target.files[0] || null
+    onPredictFilesChange(e) {
+      this.addPredictFiles(Array.from(e.target.files))
+      this.$refs.predictFileInput.value = ''
     },
     onPredictDrop(e) {
       this.isPredictDragging = false
-      const file = e.dataTransfer.files[0]
-      if (file && file.type.startsWith('image/')) this.predictFile = file
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'))
+      this.addPredictFiles(files)
+    },
+    addPredictFiles(files) {
+      for (const file of files) {
+        this.predictItems.push({
+          file,
+          imageUrl: URL.createObjectURL(file),
+          status: 'pending',
+          result: null,
+          editCt: null,
+          errorMsg: ''
+        })
+      }
+    },
+    removePredictItem(idx) {
+      URL.revokeObjectURL(this.predictItems[idx].imageUrl)
+      this.predictItems.splice(idx, 1)
+    },
+    clearAllPredictItems() {
+      for (const item of this.predictItems) URL.revokeObjectURL(item.imageUrl)
+      this.predictItems = []
+      this.registerResult = null
+    },
+    async predictAll() {
+      const pending = this.predictItems.filter(i => i.status === 'pending')
+      for (const item of pending) {
+        await this.predictSingle(item)
+      }
+    },
+    async predictSingle(item) {
+      item.status = 'predicting'
+      try {
+        const form = new FormData()
+        form.append('file', item.file)
+        const { data } = await api.post('/api/gel/predict', form)
+        item.result = data
+        item.editCt = data.predictedCt
+        item.status = 'done'
+      } catch (e) {
+        item.status = 'error'
+        item.errorMsg = e.response?.data || e.message
+      }
+    },
+    async registerAllAsTraining() {
+      this.isRegisteringAll = true
+      this.registerResult = null
+      let success = 0, duplicates = 0, errors = 0
+      const items = this.predictItems.filter(i => i.status === 'done' && i.editCt !== null)
+      for (const item of items) {
+        try {
+          const form = new FormData()
+          form.append('file', item.file)
+          form.append('ctValue', item.editCt)
+          await api.post('/api/gel/upload', form)
+          item.status = 'registered'
+          success++
+        } catch (e) {
+          if (e.response?.status === 409) {
+            item.status = 'duplicate'
+            duplicates++
+          } else {
+            item.errorMsg = e.response?.data?.error || e.message
+            errors++
+          }
+        }
+      }
+      this.registerResult = { success, duplicates, errors }
+      this.isRegisteringAll = false
+      await this.loadRecords()
     },
 
-    // ── 훈련 데이터 업로드 ──────────────────────────────────────
+    // ── 학습 데이터 업로드 ──────────────────────────────────────
     async uploadTrainingData() {
       if (!this.selectedFile || this.ctValue === null) return
       this.isUploading = true
@@ -511,13 +683,42 @@ export default {
       }
     },
     async deleteRecord(id) {
-      if (!confirm('이 훈련 데이터를 삭제하시겠습니까?')) return
+      if (!confirm('이 학습 데이터를 삭제하시겠습니까?')) return
       try {
         await api.delete(`/api/gel/records/${id}`)
         this.records = this.records.filter(r => r.id !== id)
+        this.selectedIds = this.selectedIds.filter(sid => sid !== id)
       } catch (e) {
         alert('삭제 실패: ' + (e.response?.data || e.message))
       }
+    },
+    async deleteSelected() {
+      if (!confirm(`선택한 ${this.selectedIds.length}개의 학습 데이터를 삭제하시겠습니까?`)) return
+      this.isDeleting = true
+      try {
+        await Promise.all(this.selectedIds.map(id => api.delete(`/api/gel/records/${id}`)))
+        const deletedSet = new Set(this.selectedIds)
+        this.records = this.records.filter(r => !deletedSet.has(r.id))
+        this.selectedIds = []
+      } catch (e) {
+        alert('일부 삭제 실패: ' + (e.response?.data || e.message))
+        await this.loadRecords()
+        this.selectedIds = []
+      } finally {
+        this.isDeleting = false
+      }
+    },
+    toggleSelectAll() {
+      if (this.allSelected) {
+        this.selectedIds = []
+      } else {
+        this.selectedIds = this.records.map(r => r.id)
+      }
+    },
+    toggleSelect(id) {
+      const idx = this.selectedIds.indexOf(id)
+      if (idx === -1) this.selectedIds.push(id)
+      else this.selectedIds.splice(idx, 1)
     },
 
     // ── 모델 학습 ───────────────────────────────────────────────
@@ -535,22 +736,6 @@ export default {
       }
     },
 
-    // ── Ct값 예측 ───────────────────────────────────────────────
-    async predictCt() {
-      if (!this.predictFile) return
-      this.isPredicting = true
-      this.predictResult = null
-      try {
-        const form = new FormData()
-        form.append('file', this.predictFile)
-        const { data } = await api.post('/api/gel/predict', form)
-        this.predictResult = data
-      } catch (e) {
-        alert('예측 실패: ' + (e.response?.data || e.message))
-      } finally {
-        this.isPredicting = false
-      }
-    },
 
     // ── 모델 상태 ───────────────────────────────────────────────
     async loadModelStatus() {
@@ -945,6 +1130,35 @@ export default {
   margin-bottom: 0.25rem;
 }
 
+/* ── 테이블 헤더 ───────────────────────────────────────────── */
+.records-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.btn-delete-selected {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.9rem;
+  background: rgba(229, 57, 53, 0.1);
+  color: #e53935;
+  border: 1px solid #e53935;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.btn-delete-selected:hover:not(:disabled) { background: rgba(229, 57, 53, 0.18); }
+.btn-delete-selected:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.spinner--red {
+  border-color: rgba(229,57,53,0.25);
+  border-top-color: #e53935;
+}
+
 /* ── 테이블 ────────────────────────────────────────────────── */
 .records-table-wrap { overflow-x: auto; }
 
@@ -964,43 +1178,158 @@ export default {
 
 .records-table th { color: var(--text-secondary); font-weight: 500; }
 
+.records-table tbody tr {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.records-table tbody tr:hover { background: rgba(128,128,128,0.06); }
+
+.col-check { width: 36px; padding-left: 0.75rem; }
+.row-checkbox { cursor: pointer; width: 15px; height: 15px; accent-color: var(--accent); }
 .col-name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 .col-ct   { font-weight: 600; color: var(--accent); }
 .col-date { color: var(--text-secondary); }
 
-.row--warn td { background: rgba(255, 152, 0, 0.05); }
+.row--warn td     { background: rgba(255, 152, 0, 0.05); }
+.row--selected td { background: rgba(76, 175, 80, 0.07); }
 
-/* ── 예측 결과 ─────────────────────────────────────────────── */
-.predict-result {
-  margin-top: 1.5rem;
-  padding: 1.5rem;
-  border: 1px solid var(--card-border);
-  border-radius: 10px;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+/* ── 예측 멀티 업로드 ──────────────────────────────────────── */
+.upload-area--wide {
+  width: 100%;
+  min-height: 100px;
 }
 
-.predict-result__ct {
+.predict-actions {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
 }
 
-.predict-result__label { font-size: 0.85rem; color: var(--text-secondary); }
-.predict-result__value { font-size: 2.4rem; font-weight: 700; color: var(--accent); }
-
-.predict-result__meta {
-  display: flex;
-  gap: 1.5rem;
-  font-size: 0.82rem;
+.predict-count {
+  font-size: 0.85rem;
   color: var(--text-secondary);
 }
 
-.predict-result__features {
+.btn-clear {
+  padding: 0.45rem 0.9rem;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  margin-left: auto;
+}
+.btn-clear:hover { border-color: #e57373; color: #e57373; }
+
+.predict-items {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.predict-item {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.75rem;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+.predict-item--done       { border-color: rgba(76,175,80,0.4); }
+.predict-item--registered { border-color: rgba(33,150,243,0.4); background: rgba(33,150,243,0.04); }
+.predict-item--duplicate  { border-color: rgba(158,158,158,0.4); background: rgba(158,158,158,0.04); opacity: 0.7; }
+.predict-item--error      { border-color: rgba(229,57,53,0.4); }
+
+.predict-item__thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+  background: var(--bg);
+}
+
+.predict-item__info {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.predict-item__name {
+  font-size: 0.83rem;
+  font-weight: 500;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+
+.predict-item__status { font-size: 0.78rem; }
+
+.status--pending    { color: var(--text-secondary); }
+.status--predicting { color: var(--accent); }
+.status--done       { color: #4caf50; }
+.status--registered { color: #2196f3; }
+.status--duplicate  { color: #9e9e9e; }
+.status--error      { color: #e53935; }
+
+.status-predicting {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.predict-item__features {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: 0.3rem;
+  margin-top: 0.2rem;
+}
+
+.predict-item__ct-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1rem;
+  min-width: 72px;
+}
+
+.predict-item__ct-label { font-size: 0.72rem; color: var(--text-secondary); }
+.predict-item__ct-value { font-size: 1.3rem; font-weight: 700; color: var(--accent); }
+
+.predict-item__edit {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 100px;
+}
+
+.predict-item__edit-label { font-size: 0.72rem; color: var(--text-secondary); }
+
+.ct-input--sm {
+  padding: 0.35rem 0.5rem;
+  font-size: 0.88rem;
+  width: 100px;
+}
+
+.spinner--dark {
+  border-color: rgba(0,0,0,0.15);
+  border-top-color: currentColor;
+}
+
+.spinner--sm {
+  width: 10px;
+  height: 10px;
+  border-width: 1.5px;
 }
 
 .feature-chip {
