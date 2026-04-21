@@ -237,47 +237,46 @@
 /* Chat input */
 .chat-input-area {
   display: flex;
-  align-items: flex-end;
-  gap: 0.5rem;
-  padding: 0.75rem;
-  border: 1px solid var(--card-border);
-  border-radius: 10px;
-  background: var(--surface);
-}
-
-.attach-btn {
-  padding: 0.5rem;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: 6px;
-  transition: color 0.2s;
-  flex-shrink: 0;
-}
-.attach-btn:hover { color: var(--accent); }
-
-.chat-input-wrap {
-  flex: 1;
-  display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  min-width: 0;
+  gap: 0.5rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  background: var(--surface);
+  transition: border-color 0.2s;
 }
+.chat-input-area:focus-within { border-color: var(--accent); }
 
-.agent-file-chip {
+.agent-file-preview {
   display: flex;
   align-items: center;
-  gap: 0.4rem;
-  font-size: 0.78rem;
+  gap: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  background: rgba(76,175,80,0.08);
+  border: 1px solid rgba(76,175,80,0.2);
+  border-radius: 8px;
   color: var(--accent);
-  background: rgba(76,175,80, 0.1);
-  padding: 0.15rem 0.5rem;
-  border-radius: 999px;
-  width: fit-content;
 }
-.agent-file-chip button {
-  background: none; border: none; color: var(--accent);
-  cursor: pointer; font-size: 1rem; line-height: 1; padding: 0;
+.agent-file-name {
+  flex: 1;
+  font-size: 0.78rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+.agent-file-remove {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0.1rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+.agent-file-remove:hover { color: #e53935; }
 
 .chat-input {
   width: 100%;
@@ -289,22 +288,61 @@
   resize: none;
   line-height: 1.5;
   font-family: inherit;
+  min-height: 24px;
 }
 
+.chat-input-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.attach-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.6rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+  font-size: 0.78rem;
+}
+.attach-btn:hover { color: var(--accent); background: rgba(76,175,80,0.08); border-color: rgba(76,175,80,0.2); }
+.attach-btn__label { white-space: nowrap; }
+
 .send-btn {
-  padding: 0.5rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.9rem;
   background: var(--accent);
   color: #fff;
   border: none;
   border-radius: 8px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
+  font-size: 0.85rem;
+  font-weight: 500;
   transition: opacity 0.2s;
 }
-.send-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.send-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.stop-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.9rem;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: color 0.2s, border-color 0.2s, background 0.2s;
+}
+.stop-btn:hover { color: #e53935; border-color: #e53935; background: rgba(229,57,53,0.06); }
 
 :deep(.md-heading) { display: block; margin: 0.5rem 0 0.25rem; font-size: 0.95rem; }
 

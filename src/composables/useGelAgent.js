@@ -17,6 +17,7 @@ export function useGelAgent() {
   const loadingStatusText = ref('요청 전송 중...')
   const loadingTimer = ref(null)
   const chatHistory = ref(null)
+  const abortController = ref(null)
 
   const groupedSessions = computed(() => {
     const now = new Date()
@@ -118,6 +119,9 @@ export function useGelAgent() {
     if (file) form.append('file', file)
     if (agentSessionId.value) form.append('sessionId', agentSessionId.value)
 
+    const controller = new AbortController()
+    abortController.value = controller
+
     try {
       await streamChat(form, {
         onProgress: async (msg) => {
@@ -132,10 +136,13 @@ export function useGelAgent() {
         onError: (msg) => {
           agentMessages.value.push({ role: 'agent', text: '오류가 발생했습니다: ' + msg })
         }
-      })
+      }, controller.signal)
     } catch (e) {
-      agentMessages.value.push({ role: 'agent', text: '오류가 발생했습니다: ' + e.message })
+      if (e.name !== 'AbortError') {
+        agentMessages.value.push({ role: 'agent', text: '오류가 발생했습니다: ' + e.message })
+      }
     } finally {
+      abortController.value = null
       isAgentLoading.value = false
       clearInterval(loadingTimer.value)
       loadingTimer.value = null
@@ -143,6 +150,13 @@ export function useGelAgent() {
       await nextTick()
       scrollChat()
       loadSessionList()
+    }
+  }
+
+  function stopAgent() {
+    if (abortController.value) {
+      abortController.value.abort()
+      abortController.value = null
     }
   }
 
@@ -180,7 +194,7 @@ export function useGelAgent() {
     sessionList, isSidebarOpen, loadingElapsed, loadingStatusText,
     chatHistory, groupedSessions,
     loadSessionList, loadAgentHistory, selectSession,
-    onChatDrop, onAgentFileChange, sendToAgent,
+    onChatDrop, onAgentFileChange, sendToAgent, stopAgent,
     newChat, deleteSession, scrollChat, autoResize,
     renderMarkdown, formatRelativeTime
   }
