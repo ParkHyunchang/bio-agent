@@ -1,0 +1,124 @@
+.hero-section {
+  min-height: calc(100vh - 60px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 2rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero__inner {
+  text-align: center;
+  max-width: 640px;
+  position: relative;
+  z-index: 1;
+}
+
+.hero__badge {
+  display: inline-block;
+  padding: 0.3rem 0.9rem;
+  border: 1px solid var(--card-border-strong);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+  background: var(--accent-dim);
+}
+
+.hero__title {
+  font-family: "Montserrat", sans-serif;
+  font-size: clamp(3.5rem, 12vw, 6rem);
+  font-weight: 700;
+  color: var(--accent);
+  letter-spacing: 0.06em;
+  margin-bottom: 0.75rem;
+  line-height: 1.1;
+}
+
+.hero__subtitle { font-size: clamp(1.1rem, 2.5vw, 1.4rem); color: var(--text-secondary); margin-bottom: 1rem; font-weight: 300; }
+.hero__desc { font-size: 0.95rem; color: var(--text-muted); margin-bottom: 2.5rem; line-height: 1.8; }
+
+.hero__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.2rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  border: 1px solid var(--card-border);
+  background: var(--surface-2);
+}
+
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.status-ok { color: var(--accent); }
+.status-ok .status-dot { background: var(--accent); }
+.status-error { color: var(--text-muted); }
+.status-error .status-dot { background: var(--text-muted); }
+.status-loading { color: var(--text-secondary); }
+.status-dot--pulse { background: var(--accent); animation: pulse 1.2s ease-in-out infinite; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.7); }
+}
+
+.hero__dna {
+  position: absolute;
+  right: 6%;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+.dna-bar { width: 4px; border-radius: 2px; background: var(--accent); animation: dnaWave 2s ease-in-out infinite alternate; }
+.dna-bar:nth-child(odd)  { height: 40px; }
+.dna-bar:nth-child(even) { height: 24px; }
+
+@keyframes dnaWave { from { transform: scaleY(1); } to { transform: scaleY(2.2); } }
+
+.features-section { padding: 4rem 2rem 6rem; background: var(--surface); }
+
+.features__inner {
+  max-width: 960px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1.5rem;
+}
+
+.feature-card {
+  padding: 2rem 1.5rem;
+  background: var(--surface-2);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  transition: border-color 0.25s, transform 0.25s;
+}
+.feature-card:hover { border-color: var(--card-border-strong); transform: translateY(-4px); }
+
+.feature-card__icon  { font-size: 2rem; margin-bottom: 1rem; }
+.feature-card__title { font-family: "Montserrat", sans-serif; font-size: 1rem; font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem; }
+.feature-card__desc  { font-size: 0.875rem; color: var(--text-muted); line-height: 1.6; }
+
+@media (max-width: 640px) {
+  .hero__dna { display: none; }
+  .features__inner { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 480px) {
+  .hero-section { padding: 2.5rem 1.25rem; }
+  .hero__desc { font-size: 0.875rem; }
+  .features-section { padding: 2.5rem 1.25rem 4rem; }
+  .feature-card { padding: 1.5rem 1.25rem; }
+}
+
+@media (max-width: 400px) {
+  .features__inner { grid-template-columns: 1fr; }
+}
