@@ -20,6 +20,35 @@
 
     <div class="content">
 
+      <!-- 히스토리 패널 -->
+      <aside class="history-panel" :class="{ 'history-panel--collapsed': !historyExpanded }">
+        <button class="history-panel__header" @click="historyExpanded = !historyExpanded">
+          <span>리뷰 히스토리</span>
+          <span class="history-panel__count" v-if="reviewHistory.length > 0">{{ reviewHistory.length }}</span>
+          <span class="history-panel__toggle">{{ historyExpanded ? '▲' : '▼' }}</span>
+        </button>
+        <div class="history-panel__body">
+          <div v-if="reviewHistory.length === 0" class="list-empty">
+            <p>아직 저장된 리뷰가 없습니다</p>
+          </div>
+          <div
+            v-for="record in reviewHistory"
+            :key="record.id"
+            class="history-item"
+            :class="{ 'history-item--active': selectedHistoryId === record.id }"
+            @click="selectHistory(record)"
+          >
+            <div class="history-item__title">{{ record.paperTitle }}</div>
+            <div class="history-item__meta">
+              <span v-if="record.queryText" class="history-item__query">{{ record.queryText }}</span>
+              <span class="history-item__date">{{ formatDate(record.createdAt) }}</span>
+            </div>
+            <button class="history-item__delete" @click.stop="deleteReviewHistory(record.id)">삭제</button>
+          </div>
+        </div>
+      </aside>
+
+      <!-- 검색 결과 패널 -->
       <aside class="results-panel">
         <div v-if="!hasSearched && !isSearching" class="panel-empty">
           <div class="panel-empty__icon">📄</div>
@@ -56,7 +85,7 @@
               v-for="paper in papers"
               :key="paper.pmid"
               class="paper-item"
-              :class="{ 'paper-item--active': selectedPmid === paper.pmid }"
+              :class="{ 'paper-item--active': selectedPmid === paper.pmid && !selectedHistoryId }"
               @click="selectPaper(paper.pmid)"
             >
               <p class="paper-item__title">{{ paper.title }}</p>
@@ -81,6 +110,7 @@
         </template>
       </aside>
 
+      <!-- 상세 + AI 리뷰 패널 -->
       <main class="detail-panel">
 
         <div v-if="!selectedPaper && !isLoadingDetail" class="panel-empty">
@@ -138,19 +168,24 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { usePaperSearch } from '@/composables/usePaperSearch'
 
 const rootEl = ref(null)
+const historyExpanded = ref(window.innerWidth > 768)
 
 const {
   query, isSearching, hasSearched, papers, total,
   currentPage, tooBroad, correctedQuery, originalQuery,
   selectedPmid, selectedPaper, isLoadingDetail, isReviewing, review,
   totalPages, pageNumbers, renderedReview,
+  reviewHistory, selectedHistoryId,
   search, goToPage, selectPaper, generateReview,
-  formatAuthors
+  loadReviewHistory, selectHistory, deleteReviewHistory,
+  formatAuthors, formatDate
 } = usePaperSearch(rootEl)
+
+onMounted(loadReviewHistory)
 </script>
 
 <style scoped>

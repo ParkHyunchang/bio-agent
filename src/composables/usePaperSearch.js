@@ -1,6 +1,10 @@
 import { ref, computed, nextTick } from 'vue'
-import { searchPapers, fetchPaper, generateReview as apiGenerateReview } from '@/services/paper.service'
-import { formatAuthors } from '@/utils/format'
+import {
+  searchPapers, fetchPaper,
+  generateReview as apiGenerateReview,
+  fetchReviewHistory, deleteReviewHistory as apiDeleteReviewHistory
+} from '@/services/paper.service'
+import { formatAuthors, formatDateShort } from '@/utils/format'
 import { renderPaperReview } from '@/utils/markdown'
 
 export function usePaperSearch(rootEl) {
@@ -19,6 +23,9 @@ export function usePaperSearch(rootEl) {
   const isLoadingDetail = ref(false)
   const isReviewing = ref(false)
   const review = ref(null)
+
+  const reviewHistory = ref([])
+  const selectedHistoryId = ref(null)
 
   const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
@@ -48,6 +55,7 @@ export function usePaperSearch(rootEl) {
     selectedPaper.value = null
     selectedPmid.value = null
     review.value = null
+    selectedHistoryId.value = null
     if (page === 1) {
       originalQuery.value = query.value.trim()
       correctedQuery.value = null
@@ -80,6 +88,7 @@ export function usePaperSearch(rootEl) {
     selectedPmid.value = pmid
     selectedPaper.value = null
     review.value = null
+    selectedHistoryId.value = null
     isLoadingDetail.value = true
     try {
       selectedPaper.value = await fetchPaper(pmid)
@@ -99,8 +108,9 @@ export function usePaperSearch(rootEl) {
     isReviewing.value = true
     review.value = null
     try {
-      const data = await apiGenerateReview(selectedPaper.value.pmid)
+      const data = await apiGenerateReview(selectedPaper.value, originalQuery.value || null)
       review.value = data.review
+      await loadReviewHistory()
     } catch (e) {
       console.error('AI 리뷰 오류', e)
       review.value = 'AI 분석 중 오류가 발생했습니다.'
@@ -109,12 +119,63 @@ export function usePaperSearch(rootEl) {
     }
   }
 
+  async function loadReviewHistory() {
+    try {
+      reviewHistory.value = await fetchReviewHistory()
+    } catch (e) {
+      console.error('히스토리 로드 오류', e)
+    }
+  }
+
+  async function selectHistory(record) {
+    selectedHistoryId.value = record.id
+    selectedPmid.value = record.pmid
+    review.value = record.reviewText
+    selectedPaper.value = {
+      pmid: record.pmid,
+      title: record.paperTitle,
+      authors: [],
+      journal: '',
+      pubDate: '',
+      abstractText: ''
+    }
+    isLoadingDetail.value = true
+    try {
+      selectedPaper.value = await fetchPaper(record.pmid)
+    } catch (e) {
+      console.error('논문 상세 조회 오류', e)
+    } finally {
+      isLoadingDetail.value = false
+    }
+    if (window.innerWidth <= 768) {
+      await nextTick()
+      rootEl.value?.querySelector('.detail-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  async function deleteReviewHistory(id) {
+    try {
+      await apiDeleteReviewHistory(id)
+      if (selectedHistoryId.value === id) {
+        selectedHistoryId.value = null
+        selectedPaper.value = null
+        selectedPmid.value = null
+        review.value = null
+      }
+      await loadReviewHistory()
+    } catch (e) {
+      console.error('히스토리 삭제 오류', e)
+    }
+  }
+
   return {
     query, isSearching, hasSearched, papers, total,
     currentPage, pageSize, tooBroad, correctedQuery, originalQuery,
     selectedPmid, selectedPaper, isLoadingDetail, isReviewing, review,
     totalPages, pageNumbers, renderedReview,
+    reviewHistory, selectedHistoryId,
     search, fetchPage, goToPage, selectPaper, generateReview,
-    formatAuthors
+    loadReviewHistory, selectHistory, deleteReviewHistory,
+    formatAuthors, formatDate: formatDateShort
   }
 }
