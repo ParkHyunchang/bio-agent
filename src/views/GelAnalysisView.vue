@@ -28,13 +28,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import GelTrainTab from '@/components/gel/GelTrainTab.vue'
 import GelPredictTab from '@/components/gel/GelPredictTab.vue'
 import GelAgentTab from '@/components/gel/GelAgentTab.vue'
 import { fetchModelStatus } from '@/services/gel.service'
 
-const activeTab = ref('train')
+const VALID_TABS = ['train', 'agent', 'predict']
+const savedTab = localStorage.getItem('gel_active_tab')
+const activeTab = ref(VALID_TABS.includes(savedTab) ? savedTab : 'train')
+
+watch(activeTab, (tab) => localStorage.setItem('gel_active_tab', tab))
 const modelStatus = ref({ trained: false })
 
 async function refreshModelStatus() {
