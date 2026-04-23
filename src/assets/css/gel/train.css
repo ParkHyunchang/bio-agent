@@ -1,3 +1,272 @@
+/* ── 단계 표시기 ───────────────────────── */
+.step-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 1.5rem;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  flex-shrink: 0;
+}
+
+.step__dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--card-border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  transition: all 0.2s;
+}
+
+.step__label {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+
+.step--active .step__dot {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.step--active .step__label { color: var(--accent); font-weight: 600; }
+
+.step--done .step__dot {
+  border-color: #4caf50;
+  background: #4caf50;
+  color: #fff;
+}
+.step--done .step__label { color: #4caf50; }
+
+.step__line {
+  flex: 1;
+  height: 2px;
+  background: var(--card-border);
+  min-width: 24px;
+  margin-bottom: 1.15rem;
+  transition: background 0.2s;
+}
+.step__line--done { background: #4caf50; }
+
+/* ── 업로드 영역 개선 ──────────────────── */
+.upload-area--filled {
+  border-color: var(--accent);
+  border-style: solid;
+}
+
+.upload-area {
+  position: relative;
+}
+
+.upload-area__clear {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--card-border);
+  border: none;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+.upload-area__clear:hover { background: #e57373; color: #fff; }
+
+/* ── 버튼 스텝 스타일 ──────────────────── */
+.btn-step {
+  width: 100%;
+  justify-content: center;
+}
+
+/* ── 저장 힌트 ─────────────────────────── */
+.save-hint {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+/* ── 개수 배지 ─────────────────────────── */
+.count-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  padding: 0 5px;
+  height: 18px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  vertical-align: middle;
+  margin-left: 0.35rem;
+}
+
+/* ── 테이블 컨트롤 (검색 + 컬럼 토글) ── */
+.table-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 180px;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+}
+.search-input:focus { outline: none; border-color: var(--accent); }
+
+.btn-col-toggle {
+  padding: 0.4rem 0.85rem;
+  background: transparent;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-col-toggle:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── 정렬 아이콘 ────────────────────────── */
+.sortable { cursor: pointer; user-select: none; }
+.sortable:hover { color: var(--accent); }
+
+.sort-icon {
+  font-size: 0.7rem;
+  opacity: 0.6;
+  margin-left: 2px;
+}
+
+/* ── 빈 행 ─────────────────────────────── */
+.empty-row {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 1.5rem !important;
+  font-size: 0.85rem;
+}
+
+/* ── Empty state 개선 ──────────────────── */
+.list-empty {
+  padding: 2.5rem 2rem;
+  text-align: center;
+  color: var(--text-secondary);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.list-empty__icon { font-size: 2rem; opacity: 0.5; }
+.list-empty__text { font-size: 0.92rem; margin: 0; }
+.list-empty__hint { font-size: 0.8rem; opacity: 0.7; margin: 0; }
+
+/* ── 레인 결과 래퍼 마진 ────────────────── */
+.lane-result-wrap { margin-top: 1.25rem; }
+
+.predict-actions { margin-top: 0.75rem; }
+
+/* ── 중복 감지 배너 ─────────────────── */
+.duplicate-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  padding: 0.8rem 1rem;
+  background: rgba(255, 152, 0, 0.08);
+  border: 1px solid #ff9800;
+  border-radius: 8px;
+  margin-top: 0.75rem;
+}
+
+.duplicate-banner__body {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.duplicate-banner__icon {
+  font-size: 1rem;
+  color: #ff9800;
+  flex-shrink: 0;
+  margin-top: 0.05rem;
+}
+
+.duplicate-banner__text {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+
+.duplicate-banner__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-dup-overwrite {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.38rem 0.85rem;
+  background: #ff9800;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.btn-dup-overwrite:hover:not(:disabled) { background: #e65100; }
+.btn-dup-overwrite:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-dup-reset {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.38rem 0.85rem;
+  background: transparent;
+  border: 1px solid var(--card-border);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.btn-dup-reset:hover:not(:disabled) { background: rgba(0,0,0,0.05); }
+.btn-dup-reset:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── train-header ────────────────────── */
 .train-header {
   display: flex;
   align-items: center;
@@ -42,4 +311,240 @@
   font-size: 0.78rem;
   color: #2196f3;
   opacity: 0.85;
+}
+
+/* ── 학습 결과 구조 ──────────────────────── */
+.result-main-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.25rem;
+}
+
+.result-metrics {
+  font-size: 0.83rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  flex-wrap: wrap;
+}
+
+.result-quality-reason {
+  font-size: 0.81rem;
+  margin-top: 0.3rem;
+  padding: 0.3rem 0.55rem;
+  border-radius: 5px;
+}
+
+.result-quality-reason.quality--great {
+  background: rgba(76, 175, 80, 0.1);
+  color: #2e7d32;
+}
+.result-quality-reason.quality--good {
+  background: rgba(33, 150, 243, 0.08);
+  color: #1565c0;
+}
+.result-quality-reason.quality--poor {
+  background: rgba(229, 57, 53, 0.08);
+  color: #c62828;
+}
+
+/* ── 재학습 필요 표시 ────────────────────── */
+.retrain-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  background: rgba(255, 152, 0, 0.15);
+  color: #e65100;
+  border: 1px solid #ff9800;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  vertical-align: middle;
+  margin-left: 0.5rem;
+}
+
+.retrain-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.65rem 0.9rem;
+  background: rgba(255, 152, 0, 0.08);
+  border: 1px solid #ff9800;
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+}
+
+.retrain-banner__icon {
+  font-size: 0.95rem;
+  color: #ff9800;
+  flex-shrink: 0;
+  margin-top: 0.05rem;
+}
+
+.retrain-banner__text {
+  font-size: 0.84rem;
+  color: var(--text-primary);
+  line-height: 1.45;
+}
+
+.btn-secondary--warn {
+  border-color: #ff9800 !important;
+  color: #e65100 !important;
+}
+
+/* ── 이미지 미리보기 ─────────────────────── */
+.upload-area__preview {
+  max-height: 120px;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: 4px;
+  margin-bottom: 0.35rem;
+  pointer-events: none;
+}
+
+/* ── Ct 범위 경고 ────────────────────────── */
+.ct-input--warn {
+  border-color: #ff9800 !important;
+  background: rgba(255, 152, 0, 0.06) !important;
+}
+
+.ct-warn-hint {
+  display: block;
+  font-size: 0.72rem;
+  color: #e65100;
+  margin-top: 0.15rem;
+}
+
+/* ── 학습 품질 배지 ──────────────────────── */
+.quality-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin: 0 0.35rem;
+  vertical-align: middle;
+}
+
+.quality--great { background: rgba(76, 175, 80, 0.15); color: #2e7d32; border: 1px solid #4caf50; }
+.quality--good  { background: rgba(33, 150, 243, 0.12); color: #1565c0; border: 1px solid #2196f3; }
+.quality--poor  { background: rgba(229, 57, 53, 0.1);  color: #c62828; border: 1px solid #e53935; }
+
+/* ── 데이터셋 통계 ────────────────────────── */
+.dataset-stats {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  padding: 0.55rem 0.75rem;
+  background: var(--surface);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  font-size: 0.82rem;
+}
+
+.dataset-stats__labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.dataset-stats__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.1rem 0.45rem;
+  background: rgba(33, 150, 243, 0.08);
+  border: 1px solid rgba(33, 150, 243, 0.25);
+  border-radius: 999px;
+}
+
+.dataset-stats__label { color: var(--text-primary); font-weight: 500; }
+.dataset-stats__count { color: #1976d2; font-weight: 600; }
+
+.dataset-stats__ct {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+/* ── CSV 버튼 + 헤더 액션 ─────────────────── */
+.records-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.btn-csv {
+  padding: 0.35rem 0.8rem;
+  background: transparent;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-csv:hover { border-color: var(--accent); color: var(--accent); }
+
+/* ── 레이블 불균형 경고 ──────────────────── */
+.imbalance-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  padding: 0.55rem 0.8rem;
+  background: rgba(229, 57, 53, 0.07);
+  border: 1px solid rgba(229, 57, 53, 0.4);
+  border-radius: 8px;
+  margin-bottom: 0.75rem;
+  font-size: 0.82rem;
+}
+
+.imbalance-banner__icon { color: #e53935; flex-shrink: 0; }
+.imbalance-banner__text { color: var(--text-primary); line-height: 1.45; }
+
+/* ── 모바일 반응형 ────────────────────────── */
+@media (max-width: 640px) {
+  /* 단계 표시기 */
+  .step__dot {
+    width: 22px;
+    height: 22px;
+    font-size: 0.7rem;
+  }
+  .step__label { font-size: 0.65rem; }
+  .step__line  { min-width: 12px; }
+
+  /* 헤더 행 — 버튼을 제목 아래로 */
+  .train-header,
+  .records-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .records-header__actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  /* 학습 결과 지표 — 줄바꿈 허용 */
+  .result-metrics { word-break: break-word; }
+
+  /* 데이터셋 통계 */
+  .dataset-stats { flex-direction: column; align-items: flex-start; gap: 0.4rem; }
+  .dataset-stats__ct { font-size: 0.78rem; }
+
+  /* 중복 배너 버튼 세로 정렬 */
+  .duplicate-banner__actions { flex-direction: column; }
+  .btn-dup-overwrite,
+  .btn-dup-reset { width: 100%; justify-content: center; }
+
+  /* 재학습 배너 */
+  .retrain-banner { flex-direction: column; gap: 0.3rem; }
+
+  /* 테이블 컨트롤 */
+  .search-input { min-width: unset; width: 100%; }
 }
