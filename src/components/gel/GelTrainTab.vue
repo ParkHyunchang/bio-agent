@@ -196,7 +196,7 @@
       </div>
       <p class="section-desc">저장된 학습 데이터 전체를 사용해 모델을 재학습합니다. 최소 3개 이상 필요. 학습 목표: ① mecA 이진 분류(양성/음성) ② 저농도(10¹~10³) LOD 탐지 ③ 프라이머 다이머 노이즈 필터링.</p>
 
-      <div v-if="trainResult" class="result-box result-box--info">
+<div v-if="trainResult" class="result-box result-box--info">
         <div class="result-main-line">
           <strong>학습 완료</strong>
           <span v-if="trainQuality" class="quality-badge" :class="trainQuality.cls">{{ trainQuality.label }}</span>
@@ -287,7 +287,8 @@
           </button>
         </div>
 
-        <div class="records-table-wrap">
+        <!-- 데스크탑: 테이블 -->
+        <div class="records-table-wrap table-only">
           <table class="records-table">
             <thead>
               <tr>
@@ -356,6 +357,35 @@
               </template>
             </tbody>
           </table>
+        </div>
+
+        <!-- 모바일: 카드뷰 -->
+        <div class="mobile-only">
+          <div v-if="filteredRecords.length === 0" class="empty-row">검색 결과가 없습니다.</div>
+          <div
+            v-for="r in filteredRecords"
+            :key="r.id"
+            class="record-card"
+            :class="{ 'record-card--selected': selectedIds.includes(r.id), 'record-card--warn': r.warning }"
+            @click="toggleSelect(r.id)"
+          >
+            <div class="record-card__header">
+              <input type="checkbox" class="row-checkbox" :value="r.id" v-model="selectedIds" @click.stop />
+              <span class="record-card__filename">{{ r.fileName }}</span>
+              <button class="btn-delete" @click.stop="deleteRecord(r.id)">삭제</button>
+            </div>
+            <div class="record-card__body">
+              <div class="record-card__row">
+                <span class="record-card__key">레인</span>
+                <span class="record-card__val">{{ r.laneIndex }}</span>
+                <span class="record-card__key">레이블</span>
+                <span class="record-card__val lane-label-cell">{{ r.concentrationLabel || '—' }}</span>
+                <span class="record-card__key">Ct</span>
+                <span class="record-card__val col-ct">{{ r.ctValue }}</span>
+              </div>
+              <div class="record-card__date">{{ formatDate(r.createdAt) }}</div>
+            </div>
+          </div>
         </div>
       </template>
     </section>
