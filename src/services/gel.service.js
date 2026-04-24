@@ -38,6 +38,24 @@ export async function resetModel() {
   await api.delete('/api/gel/model')
 }
 
+export async function fetchModelVersions() {
+  const { data } = await api.get('/api/gel/model/versions')
+  return data
+}
+
+export async function rollbackModel(versionId) {
+  const { data } = await api.post('/api/gel/model/rollback', { version_id: versionId })
+  return data
+}
+
+export async function bulkUploadZip(formData) {
+  const { data } = await api.post('/api/gel/bulk-upload', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    timeout: 600_000,
+  })
+  return data
+}
+
 export async function predictGel(formData) {
   const { data } = await api.post('/api/gel/predict-gel', formData)
   return data

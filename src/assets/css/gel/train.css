@@ -612,3 +612,88 @@
   /* 기술 컬럼 토글 버튼 — 모바일에선 숨김 (카드뷰에 없음) */
   .btn-col-toggle { display: none; }
 }
+
+
+/* 대량 업로드 + 모델 버전 히스토리 */
+.bulk-section {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--card-border);
+}
+.bulk-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+@media (max-width: 768px) {
+  .bulk-row { grid-template-columns: 1fr; }
+}
+.section-title--sm { font-size: 0.95rem; margin-bottom: 0.25rem; }
+.btn-bulk {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  padding: 0.45rem 0.9rem;
+}
+.btn-sm { padding: 0.35rem 0.75rem; font-size: 0.82rem; }
+.bulk-errors {
+  margin: 0.3rem 0 0 1.1rem;
+  padding: 0;
+  font-size: 0.78rem;
+  color: #c62828;
+}
+.version-list {
+  list-style: none;
+  margin: 0.5rem 0 0 0;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+}
+.version-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--card-border);
+  gap: 0.6rem;
+}
+.version-item:last-child { border-bottom: none; }
+.version-item__meta {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+}
+.version-item__current {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0 0.35rem;
+  font-size: 0.7rem;
+  background: rgba(76,175,80,0.15);
+  color: var(--accent);
+  border-radius: 3px;
+}
+.version-item__stats {
+  font-size: 0.72rem;
+  opacity: 0.75;
+  margin-top: 0.15rem;
+}
+.btn-rollback {
+  padding: 0.3rem 0.65rem;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--text-primary);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 0.78rem;
+}
+.btn-rollback:hover:not(:disabled) {
+  background: rgba(0,0,0,0.05);
+}
+.btn-rollback:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+

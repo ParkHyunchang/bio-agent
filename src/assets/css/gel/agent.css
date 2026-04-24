@@ -109,11 +109,15 @@
 
 /* Chat area */
 .agent-section { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+/* agent-tab 안에서는 고정 영역들이 줄어들지 않게 (chat-history가 대신 shrink) */
+.agent-section > .section-desc,
+.agent-section > .agent-error-banner { flex-shrink: 0; }
 .agent-header {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 0.25rem;
+  flex-shrink: 0;
 }
 .btn-sidebar-toggle {
   display: none;
@@ -130,7 +134,7 @@
 .btn-sidebar-toggle:hover { color: var(--accent); }
 
 .chat-history {
-  flex: 1;
+  flex: 1 1 auto;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
@@ -140,8 +144,7 @@
   border-radius: 10px;
   background: var(--bg);
   margin-bottom: 0.75rem;
-  min-height: 300px;
-  max-height: calc(100vh - 380px);
+  min-height: 0; /* flex child가 내부 콘텐츠에 의해 밀려나지 않도록 */
   transition: border-color 0.15s, background 0.15s;
 }
 .chat-history--drag {
@@ -244,6 +247,7 @@
   border-radius: 14px;
   background: var(--surface);
   transition: border-color 0.2s;
+  flex-shrink: 0; /* 절대 잘리지 않도록. chat-history가 대신 줄어듦 */
 }
 .chat-input-area:focus-within { border-color: var(--accent); }
 
@@ -256,6 +260,14 @@
   border: 1px solid rgba(76,175,80,0.2);
   border-radius: 8px;
   color: var(--accent);
+}
+.agent-file-thumb {
+  width: 36px;
+  height: 36px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+  border: 1px solid rgba(76,175,80,0.25);
 }
 .agent-file-name {
   flex: 1;
@@ -376,4 +388,135 @@
 
   .btn-sidebar-toggle { display: flex; }
   .btn-delete-session { display: flex; }
+}
+
+/* 에러/알림 배너 */
+.agent-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0.5rem 0 0.75rem;
+  padding: 0.55rem 0.8rem;
+  background: rgba(229,57,53,0.08);
+  border: 1px solid rgba(229,57,53,0.25);
+  border-radius: 8px;
+  color: #c62828;
+  font-size: 0.82rem;
+}
+.agent-error-banner__close {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: 0 0.2rem;
+}
+
+/* 에이전트 응답 액션 (복사/재생성/재시도) */
+.chat-msg__bubble { position: relative; }
+.chat-msg__actions {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.chat-msg:hover .chat-msg__actions { opacity: 0.9; }
+.chat-msg__actions:focus-within { opacity: 1; }
+
+.chat-msg__copy,
+.chat-msg__regen {
+  background: rgba(0,0,0,0.04);
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 5px;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  display: flex;
+  align-items: center;
+}
+.chat-msg__copy:hover,
+.chat-msg__regen:hover {
+  background: rgba(0,0,0,0.08);
+  border-color: var(--card-border);
+  color: var(--text-primary);
+}
+.chat-msg__copy:disabled,
+.chat-msg__regen:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.chat-msg__retry {
+  background: var(--accent, #4caf50);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  padding: 3px 10px;
+  border-radius: 5px;
+  font-size: 0.74rem;
+  font-weight: 500;
+}
+.chat-msg__retry:hover { filter: brightness(0.95); }
+.chat-msg__retry:disabled { cursor: not-allowed; opacity: 0.5; }
+
+.chat-msg--error .chat-msg__bubble {
+  background: rgba(229,57,53,0.08);
+  border: 1px solid rgba(229,57,53,0.25);
+}
+
+/* 마크다운 신규 요소 */
+.md-code {
+  background: rgba(0,0,0,0.06);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.88em;
+}
+.md-pre {
+  background: rgba(0,0,0,0.06);
+  padding: 0.6rem 0.75rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 0.85em;
+  margin: 0.4rem 0;
+}
+.md-pre code {
+  background: transparent;
+  padding: 0;
+}
+.md-ul {
+  margin: 0.25rem 0 0.25rem 1.25rem;
+  padding: 0;
+}
+.md-heading--h3 { font-size: 0.92em; }
+
+/* GFM 테이블 */
+.md-table {
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  font-size: 0.85em;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  display: block;
+}
+.md-table thead {
+  background: rgba(76,175,80,0.08);
+}
+.md-table th,
+.md-table td {
+  border: 1px solid var(--card-border);
+  padding: 0.35rem 0.6rem;
+  vertical-align: top;
+  white-space: nowrap;
+}
+.md-table th {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.md-table tbody tr:nth-child(even) {
+  background: rgba(0,0,0,0.02);
 }

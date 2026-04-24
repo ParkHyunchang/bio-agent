@@ -211,6 +211,59 @@
       </div>
     </section>
 
+    <!-- 대량 업로드 + 모델 버전 관리 -->
+    <section class="bulk-section">
+      <div class="bulk-row">
+        <div class="bulk-col">
+          <h3 class="section-title section-title--sm">대량 업로드 (ZIP)</h3>
+          <p class="section-desc">ZIP 안에 이미지와 <code>labels.csv</code>(헤더: <code>filename,ct_value</code>)를 넣어 한 번에 등록합니다.</p>
+          <label class="btn-secondary btn-bulk">
+            <input
+              type="file"
+              accept=".zip,application/zip,application/x-zip-compressed"
+              style="display:none"
+              @change="onBulkZipSelected"
+            />
+            <span v-if="isBulkUploading" class="spinner spinner--dark"></span>
+            <span v-else>ZIP 선택 및 업로드</span>
+          </label>
+          <div v-if="bulkResult" class="result-box result-box--info" style="margin-top:0.5rem">
+            처리 {{ bulkResult.processed }}건 · 성공 {{ bulkResult.succeeded }} · 중복 {{ bulkResult.duplicates }} · 실패 {{ bulkResult.failed }}
+            <ul v-if="bulkResult.errors?.length" class="bulk-errors">
+              <li v-for="(err, i) in bulkResult.errors.slice(0, 5)" :key="i">{{ err.filename || err.line }}: {{ err.error }}</li>
+              <li v-if="bulkResult.errors.length > 5">...외 {{ bulkResult.errors.length - 5 }}건</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="bulk-col">
+          <h3 class="section-title section-title--sm">모델 버전 히스토리</h3>
+          <p class="section-desc">학습 시마다 버전이 저장됩니다. 이전 버전으로 롤백 가능.</p>
+          <button class="btn-secondary btn-sm" :disabled="isLoadingVersions" @click="loadModelVersions">
+            <span v-if="isLoadingVersions" class="spinner spinner--dark"></span>
+            <span v-else>버전 목록 조회</span>
+          </button>
+          <ul v-if="modelVersions.length > 0" class="version-list">
+            <li v-for="v in modelVersions" :key="v.version_id" class="version-item">
+              <div class="version-item__meta">
+                <strong>{{ v.version_id }}</strong>
+                <span v-if="v.is_current" class="version-item__current">현재</span>
+                <div class="version-item__stats">
+                  {{ v.model_type }} · 샘플 {{ v.sample_count }} · R² {{ v.train_r2 }}
+                </div>
+              </div>
+              <button
+                class="btn-rollback"
+                :disabled="v.is_current || isRollingBack"
+                @click="doRollback(v.version_id)"
+              >롤백</button>
+            </li>
+          </ul>
+          <p v-else-if="versionsLoaded" class="section-desc" style="margin-top:0.4rem">저장된 버전이 없습니다.</p>
+        </div>
+      </div>
+    </section>
+
     <!-- 학습 데이터 목록 -->
     <section class="records-section">
       <div class="records-header">
@@ -395,6 +448,8 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useGelTraining } from '@/composables/useGelTraining'
+import { useToast } from '@/composables/useToast'
+import { bulkUploadZip, fetchModelVersions, rollbackModel } from '@/services/gel.service'
 import { fmt, formatDate } from '@/utils/format'
 
 const emit = defineEmits(['model-updated'])
@@ -413,6 +468,77 @@ const {
 } = useGelTraining(emit)
 
 onMounted(loadRecords)
+
+// ── 대량 업로드 (ZIP) ─────────────────────
+const bulkToast = useToast()
+const isBulkUploading = ref(false)
+const bulkResult = ref(null)
+
+async function onBulkZipSelected(e) {
+  const file = e.target.files?.[0]
+  e.target.value = ''
+  if (!file) return
+  if (isBulkUploading.value) return
+  isBulkUploading.value = true
+  bulkResult.value = null
+  try {
+    const form = new FormData()
+    form.append('file', file)
+    const data = await bulkUploadZip(form)
+    bulkResult.value = data
+    if (data.succeeded > 0) {
+      bulkToast.success(`${data.succeeded}건 등록 완료 (중복 ${data.duplicates}, 실패 ${data.failed})`)
+      await loadRecords()
+    } else if (data.failed > 0) {
+      bulkToast.error(`모두 실패 (${data.failed}건)`)
+    } else if (data.duplicates > 0) {
+      bulkToast.info(`모두 중복 (${data.duplicates}건)`)
+    }
+  } catch (err) {
+    console.error('대량 업로드 실패', err)
+    bulkToast.error(err.response?.data?.error || '대량 업로드에 실패했습니다.')
+  } finally {
+    isBulkUploading.value = false
+  }
+}
+
+// ── 모델 버전 히스토리 ─────────────────────
+const modelVersions = ref([])
+const versionsLoaded = ref(false)
+const isLoadingVersions = ref(false)
+const isRollingBack = ref(false)
+
+async function loadModelVersions() {
+  if (isLoadingVersions.value) return
+  isLoadingVersions.value = true
+  try {
+    const data = await fetchModelVersions()
+    modelVersions.value = Array.isArray(data?.versions) ? data.versions : []
+    versionsLoaded.value = true
+  } catch (err) {
+    console.error('버전 목록 조회 실패', err)
+    bulkToast.error('버전 목록을 가져오지 못했습니다.')
+  } finally {
+    isLoadingVersions.value = false
+  }
+}
+
+async function doRollback(versionId) {
+  if (isRollingBack.value) return
+  if (!window.confirm(`버전 ${versionId}(으)로 롤백하시겠습니까?`)) return
+  isRollingBack.value = true
+  try {
+    await rollbackModel(versionId)
+    bulkToast.success(`버전 ${versionId}(으)로 롤백했습니다.`)
+    await loadModelVersions()
+    emit('model-updated')
+  } catch (err) {
+    console.error('롤백 실패', err)
+    bulkToast.error(err.response?.data?.error || '롤백에 실패했습니다.')
+  } finally {
+    isRollingBack.value = false
+  }
+}
 
 // ── 이미지 미리보기 ───────────────────────
 const imagePreviewUrl = ref(null)

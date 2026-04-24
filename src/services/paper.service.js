@@ -21,7 +21,7 @@ export async function generateReview(paper, queryText) {
     authors: paper.authors,
     journal: paper.journal,
     pubDate: paper.pubDate
-  })
+  }, { timeout: 180_000 })
   return data
 }
 
