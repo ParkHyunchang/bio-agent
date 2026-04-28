@@ -10,6 +10,8 @@
   "dependencies": {
     "axios": "^1.13.6",
     "core-js": "^3.8.3",
+    "docx": "^9.6.1",
+    "html2pdf.js": "^0.14.0",
     "vue": "^3.2.13",
     "vue-router": "^4.5.1"
   },

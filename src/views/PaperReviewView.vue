@@ -6,11 +6,18 @@
         <span class="search-bar__icon">🔍</span>
         <input
           v-model="query"
+          ref="searchInputEl"
           class="search-bar__input"
           type="text"
           placeholder="키워드 입력 (예: BRCA2, Alzheimer, CRISPR-Cas9)..."
           @keyup.enter="search"
         />
+        <button
+          v-if="query"
+          class="search-bar__clear"
+          @click="clearSearch"
+          title="검색어 지우기 (Esc)"
+        >×</button>
         <button class="search-bar__btn" :disabled="isSearching || !query.trim()" @click="search">
           <span v-if="isSearching" class="spinner"></span>
           <span v-else>검색</span>
@@ -143,8 +150,19 @@
                 class="badge badge--link badge--accent"
                 title="PMC 오픈액세스 본문 사용 가능"
               >PMC 본문 ↗</a>
+              <a
+                v-if="selectedPaper.pmcid"
+                :href="pmcPdfHref"
+                target="_blank"
+                rel="noopener"
+                class="badge badge--link badge--accent"
+                title="PMC 원문 PDF 다운로드"
+              >📥 PDF ↗</a>
             </div>
             <p class="paper-detail__authors">{{ selectedPaper.authors.join(', ') }}</p>
+            <p v-if="!selectedPaper.pmcid" class="paper-detail__no-pdf" title="저작권 보호로 PubMed는 원문 PDF를 직접 제공하지 않습니다">
+              ℹ PMC 미등재 — 원문 PDF는 PubMed에서 직접 제공하지 않습니다
+            </p>
           </div>
 
           <div class="abstract-box">
@@ -153,19 +171,40 @@
           </div>
 
           <div class="review-section">
-            <button class="review-btn" :disabled="isReviewing" @click="generateReview">
-              <span v-if="isReviewing" class="spinner"></span>
-              <span v-else>{{ selectedPaper.pmcid ? '✨ AI 요약 생성 (PMC 본문 분석)' : '✨ AI 요약 생성 (초록 분석)' }}</span>
-            </button>
-
-            <div v-if="review" class="review-result">
-              <div class="review-result__label">AI 분석 결과</div>
-              <div class="review-result__body" v-html="renderedReview"></div>
+            <div v-if="!review && !isReviewing" class="review-prompt">
+              <p class="review-prompt__hint">
+                Claude가 {{ selectedPaper.pmcid ? '논문 본문 전체' : '초록' }}를 읽고 한국어로 분석 요약합니다.
+              </p>
+              <button class="review-btn" @click="generateReview">
+                <span>{{ selectedPaper.pmcid ? '✨ AI 요약 생성 (PMC 본문 분석)' : '✨ AI 요약 생성 (초록 분석)' }}</span>
+              </button>
             </div>
 
             <div v-if="isReviewing" class="review-loading">
               <div class="spinner spinner--lg"></div>
               <p>Claude가 논문을 분석하고 있습니다...</p>
+            </div>
+
+            <div v-if="review && !isReviewing" class="review-result">
+              <div class="review-result__head">
+                <div class="review-result__label">AI 분석 결과</div>
+                <div class="review-result__actions">
+                  <button class="ra-btn" @click="copyReview" title="AI 요약 텍스트를 클립보드에 복사">
+                    <span v-if="copyDone">✓ 복사됨</span>
+                    <span v-else>📋 복사</span>
+                  </button>
+                  <button class="ra-btn" :disabled="isExportingPdf" @click="onExportPdf" title="제목·저자·초록·AI 요약을 PDF로 다운로드">
+                    <span v-if="isExportingPdf" class="spinner"></span>
+                    <span v-else>📄 PDF</span>
+                  </button>
+                  <button class="ra-btn" :disabled="isExportingWord" @click="onExportWord" title="제목·저자·초록·AI 요약을 Word로 다운로드">
+                    <span v-if="isExportingWord" class="spinner"></span>
+                    <span v-else>📝 Word</span>
+                  </button>
+                  <button class="ra-btn" @click="generateReview" title="AI 요약을 다시 생성">🔄 다시 생성</button>
+                </div>
+              </div>
+              <div class="review-result__body" v-html="renderedReview"></div>
             </div>
           </div>
         </div>
@@ -176,10 +215,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { usePaperSearch } from '@/composables/usePaperSearch'
+import { exportSummaryAsPdf, exportSummaryAsWord, pmcPdfUrl } from '@/utils/exportPaper'
+import { useToast } from '@/composables/useToast'
 
 const rootEl = ref(null)
+const searchInputEl = ref(null)
 const historyExpanded = ref(window.innerWidth > 768)
 
 const {
@@ -193,7 +235,74 @@ const {
   formatAuthors, formatDate
 } = usePaperSearch(rootEl)
 
-onMounted(loadReviewHistory)
+const toast = useToast()
+const isExportingPdf = ref(false)
+const isExportingWord = ref(false)
+const copyDone = ref(false)
+
+const pmcPdfHref = computed(() => pmcPdfUrl(selectedPaper.value?.pmcid))
+
+async function onExportPdf() {
+  if (!selectedPaper.value || isExportingPdf.value) return
+  isExportingPdf.value = true
+  try {
+    await exportSummaryAsPdf(selectedPaper.value, review.value)
+  } catch (e) {
+    console.error('PDF 내보내기 오류', e)
+    toast.error('PDF 다운로드에 실패했습니다.')
+  } finally {
+    isExportingPdf.value = false
+  }
+}
+
+async function onExportWord() {
+  if (!selectedPaper.value || isExportingWord.value) return
+  isExportingWord.value = true
+  try {
+    await exportSummaryAsWord(selectedPaper.value, review.value)
+  } catch (e) {
+    console.error('Word 내보내기 오류', e)
+    toast.error('Word 다운로드에 실패했습니다.')
+  } finally {
+    isExportingWord.value = false
+  }
+}
+
+async function copyReview() {
+  if (!review.value) return
+  try {
+    await navigator.clipboard.writeText(review.value)
+    copyDone.value = true
+    toast.success('AI 요약을 복사했습니다.')
+    setTimeout(() => { copyDone.value = false }, 1800)
+  } catch (e) {
+    console.error('복사 실패', e)
+    toast.error('복사에 실패했습니다.')
+  }
+}
+
+function clearSearch() {
+  query.value = ''
+  searchInputEl.value?.focus()
+}
+
+function onKeydown(e) {
+  if (e.key === 'Escape' && document.activeElement === searchInputEl.value && query.value) {
+    clearSearch()
+  }
+}
+
+watch(() => selectedPmid.value, () => { copyDone.value = false })
+
+onMounted(() => {
+  loadReviewHistory()
+  if (window.innerWidth > 768) searchInputEl.value?.focus()
+  window.addEventListener('keydown', onKeydown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', onKeydown)
+})
 </script>
 
 <style scoped>
