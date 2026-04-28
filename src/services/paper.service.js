@@ -1,9 +1,12 @@
 import api from '@/axios'
 
-export async function searchPapers(query, page, size) {
-  const { data } = await api.get('/api/papers/search', {
-    params: { query, page, size }
-  })
+export async function searchPapers(query, page, size, filters = {}) {
+  const { sort, pubType, onlyPmc } = filters
+  const params = { query, page, size }
+  if (sort && sort !== 'relevance') params.sort = sort
+  if (pubType) params.pubType = pubType
+  if (onlyPmc) params.onlyPmc = true
+  const { data } = await api.get('/api/papers/search', { params })
   return data
 }
 

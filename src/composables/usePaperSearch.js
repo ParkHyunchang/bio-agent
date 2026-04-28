@@ -1,4 +1,4 @@
-import { ref, computed, nextTick } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import {
   searchPapers, fetchPaper,
   generateReview as apiGenerateReview,
@@ -19,6 +19,9 @@ export function usePaperSearch(rootEl) {
   const tooBroad = ref(false)
   const correctedQuery = ref(null)
   const originalQuery = ref('')
+  const sort = ref('relevance')
+  const pubType = ref('')
+  const onlyPmc = ref(false)
   const selectedPmid = ref(null)
   const selectedPaper = ref(null)
   const isLoadingDetail = ref(false)
@@ -67,7 +70,11 @@ export function usePaperSearch(rootEl) {
       correctedQuery.value = null
     }
     try {
-      const data = await searchPapers(query.value.trim(), page, pageSize.value)
+      const data = await searchPapers(query.value.trim(), page, pageSize.value, {
+        sort: sort.value,
+        pubType: pubType.value,
+        onlyPmc: onlyPmc.value
+      })
       if (reqId !== searchRequestSeq) return // stale: 새 검색이 시작됨
       papers.value = data.papers
       total.value = data.total
@@ -195,9 +202,16 @@ export function usePaperSearch(rootEl) {
     }
   }
 
+  // 필터 변경 시: 검색이 한 번이라도 이뤄졌고 검색어가 남아있으면 1페이지부터 재조회
+  watch([sort, pubType, onlyPmc], () => {
+    if (!hasSearched.value || !query.value.trim()) return
+    fetchPage(1)
+  })
+
   return {
     query, isSearching, hasSearched, papers, total,
     currentPage, pageSize, tooBroad, correctedQuery, originalQuery,
+    sort, pubType, onlyPmc,
     selectedPmid, selectedPaper, isLoadingDetail, isReviewing, review,
     totalPages, pageNumbers, renderedReview,
     reviewHistory, selectedHistoryId,

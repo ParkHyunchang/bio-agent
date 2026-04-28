@@ -23,6 +23,35 @@
           <span v-else>검색</span>
         </button>
       </div>
+
+      <div class="filter-bar">
+        <label class="filter-field">
+          <span class="filter-field__label">정렬</span>
+          <select v-model="sort" class="filter-field__select" :disabled="isSearching">
+            <option value="relevance">관련도순</option>
+            <option value="pubDate">최신 발행순</option>
+            <option value="epubDate">온라인 공개순</option>
+          </select>
+        </label>
+
+        <label class="filter-field">
+          <span class="filter-field__label">논문 유형</span>
+          <select v-model="pubType" class="filter-field__select" :disabled="isSearching">
+            <option value="">전체</option>
+            <option value="Review">Review</option>
+            <option value="Systematic Review">Systematic Review</option>
+            <option value="Meta-Analysis">Meta-Analysis</option>
+            <option value="Clinical Trial">Clinical Trial</option>
+            <option value="Randomized Controlled Trial">Randomized Controlled Trial</option>
+            <option value="Case Reports">Case Reports</option>
+          </select>
+        </label>
+
+        <label class="filter-check">
+          <input type="checkbox" v-model="onlyPmc" :disabled="isSearching" />
+          <span>PMC 본문 있는 논문만</span>
+        </label>
+      </div>
     </div>
 
     <div class="content">
@@ -98,6 +127,14 @@
               <p class="paper-item__title">{{ paper.title }}</p>
               <p class="paper-item__meta">{{ formatAuthors(paper.authors) }}</p>
               <p class="paper-item__journal">{{ paper.journal }} · {{ paper.pubDate }}</p>
+              <div class="paper-item__tags" v-if="paper.hasPmc || (paper.pubTypes && paper.pubTypes.length)">
+                <span v-if="paper.hasPmc" class="tag tag--pmc">PMC</span>
+                <span
+                  v-for="t in (paper.pubTypes || []).filter(t => t !== 'Journal Article')"
+                  :key="t"
+                  class="tag"
+                >{{ t }}</span>
+              </div>
             </li>
           </ul>
 
@@ -227,6 +264,7 @@ const historyExpanded = ref(window.innerWidth > 768)
 const {
   query, isSearching, hasSearched, papers, total,
   currentPage, tooBroad, correctedQuery, originalQuery,
+  sort, pubType, onlyPmc,
   selectedPmid, selectedPaper, isLoadingDetail, isReviewing, review,
   totalPages, pageNumbers, renderedReview,
   reviewHistory, selectedHistoryId,
