@@ -23,46 +23,34 @@
           <span v-else>검색</span>
         </button>
       </div>
-
-      <div class="filter-bar">
-        <label class="filter-field">
-          <span class="filter-field__label">정렬</span>
-          <select v-model="sort" class="filter-field__select" :disabled="isSearching">
-            <option value="relevance">관련도순</option>
-            <option value="pubDate">최신 발행순</option>
-            <option value="epubDate">온라인 공개순</option>
-          </select>
-        </label>
-
-        <label class="filter-field">
-          <span class="filter-field__label">논문 유형</span>
-          <select v-model="pubType" class="filter-field__select" :disabled="isSearching">
-            <option value="">전체</option>
-            <option value="Review">Review</option>
-            <option value="Systematic Review">Systematic Review</option>
-            <option value="Meta-Analysis">Meta-Analysis</option>
-            <option value="Clinical Trial">Clinical Trial</option>
-            <option value="Randomized Controlled Trial">Randomized Controlled Trial</option>
-            <option value="Case Reports">Case Reports</option>
-          </select>
-        </label>
-
-        <label class="filter-check">
-          <input type="checkbox" v-model="onlyPmc" :disabled="isSearching" />
-          <span>PMC 본문 있는 논문만</span>
-        </label>
-      </div>
     </div>
 
-    <div class="content">
+    <div class="content" :class="{ 'content--history-hidden': !historyVisible }">
+
+      <!-- 히스토리 레일 (접혔을 때만 노출) -->
+      <button
+        v-if="!historyVisible"
+        class="history-rail"
+        @click="toggleHistory"
+        :title="`리뷰 히스토리 보기${reviewHistory.length ? ` (${reviewHistory.length}건)` : ''}`"
+      >
+        <span class="history-rail__icon">▶</span>
+        <span class="history-rail__text">📋 리뷰 히스토리</span>
+        <span class="history-rail__count" v-if="reviewHistory.length > 0">{{ reviewHistory.length }}</span>
+      </button>
 
       <!-- 히스토리 패널 -->
-      <aside class="history-panel" :class="{ 'history-panel--collapsed': !historyExpanded }">
-        <button class="history-panel__header" @click="historyExpanded = !historyExpanded">
-          <span>리뷰 히스토리</span>
+      <aside class="history-panel" :class="{ 'history-panel--hidden': !historyVisible }">
+        <div class="history-panel__header">
+          <span class="history-panel__title">리뷰 히스토리</span>
           <span class="history-panel__count" v-if="reviewHistory.length > 0">{{ reviewHistory.length }}</span>
-          <span class="history-panel__toggle">{{ historyExpanded ? '▲' : '▼' }}</span>
-        </button>
+          <button
+            class="history-panel__close"
+            @click="toggleHistory"
+            title="히스토리 숨기기"
+            aria-label="히스토리 숨기기"
+          >×</button>
+        </div>
         <div class="history-panel__body">
           <div v-if="reviewHistory.length === 0" class="list-empty">
             <p>아직 저장된 리뷰가 없습니다</p>
@@ -86,6 +74,35 @@
 
       <!-- 검색 결과 패널 -->
       <aside class="results-panel">
+        <div class="results-toolbar">
+          <label class="filter-field">
+            <span class="filter-field__label">정렬</span>
+            <select v-model="sort" class="filter-field__select" :disabled="isSearching">
+              <option value="relevance">관련도순</option>
+              <option value="pubDate">최신 발행순</option>
+              <option value="epubDate">온라인 공개순</option>
+            </select>
+          </label>
+
+          <label class="filter-field">
+            <span class="filter-field__label">유형</span>
+            <select v-model="pubType" class="filter-field__select" :disabled="isSearching">
+              <option value="">전체</option>
+              <option value="Review">Review</option>
+              <option value="Systematic Review">Systematic Review</option>
+              <option value="Meta-Analysis">Meta-Analysis</option>
+              <option value="Clinical Trial">Clinical Trial</option>
+              <option value="Randomized Controlled Trial">RCT</option>
+              <option value="Case Reports">Case Reports</option>
+            </select>
+          </label>
+
+          <label class="filter-check" title="PMC(PubMed Central) 오픈액세스 본문이 있는 논문만 표시">
+            <input type="checkbox" v-model="onlyPmc" :disabled="isSearching" />
+            <span>PMC만</span>
+          </label>
+        </div>
+
         <div v-if="!hasSearched && !isSearching" class="panel-empty">
           <div class="panel-empty__icon">📄</div>
           <p>검색어를 입력하면<br>PubMed 논문이 나타납니다</p>
@@ -259,7 +276,23 @@ import { useToast } from '@/composables/useToast'
 
 const rootEl = ref(null)
 const searchInputEl = ref(null)
-const historyExpanded = ref(window.innerWidth > 768)
+
+const HISTORY_VISIBLE_KEY = 'paperReview.historyVisible'
+const historyVisible = ref(loadHistoryVisible())
+
+function loadHistoryVisible() {
+  if (window.innerWidth <= 768) return false
+  const saved = localStorage.getItem(HISTORY_VISIBLE_KEY)
+  if (saved === null) return true
+  return saved === '1'
+}
+
+function toggleHistory() {
+  historyVisible.value = !historyVisible.value
+  if (window.innerWidth > 768) {
+    localStorage.setItem(HISTORY_VISIBLE_KEY, historyVisible.value ? '1' : '0')
+  }
+}
 
 const {
   query, isSearching, hasSearched, papers, total,
