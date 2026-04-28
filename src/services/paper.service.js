@@ -15,6 +15,7 @@ export async function fetchPaper(pmid) {
 export async function generateReview(paper, queryText) {
   const { data } = await api.post('/api/papers/review', {
     pmid: paper.pmid,
+    pmcid: paper.pmcid,
     queryText,
     paperTitle: paper.title,
     abstractText: paper.abstractText,

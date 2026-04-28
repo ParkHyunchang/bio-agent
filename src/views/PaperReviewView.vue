@@ -135,6 +135,14 @@
                 rel="noopener"
                 class="badge badge--link"
               >PubMed ↗</a>
+              <a
+                v-if="selectedPaper.pmcid"
+                :href="`https://www.ncbi.nlm.nih.gov/pmc/articles/${selectedPaper.pmcid}/`"
+                target="_blank"
+                rel="noopener"
+                class="badge badge--link badge--accent"
+                title="PMC 오픈액세스 본문 사용 가능"
+              >PMC 본문 ↗</a>
             </div>
             <p class="paper-detail__authors">{{ selectedPaper.authors.join(', ') }}</p>
           </div>
@@ -147,7 +155,7 @@
           <div class="review-section">
             <button class="review-btn" :disabled="isReviewing" @click="generateReview">
               <span v-if="isReviewing" class="spinner"></span>
-              <span v-else>✨ AI 요약 생성</span>
+              <span v-else>{{ selectedPaper.pmcid ? '✨ AI 요약 생성 (PMC 본문 분석)' : '✨ AI 요약 생성 (초록 분석)' }}</span>
             </button>
 
             <div v-if="review" class="review-result">
