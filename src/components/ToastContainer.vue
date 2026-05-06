@@ -11,6 +11,7 @@
         >
           <span class="toast__icon">{{ ICONS[t.type] }}</span>
           <span class="toast__msg">{{ t.message }}</span>
+          <span v-if="t.count > 1" class="toast__count" :title="`${t.count}회 발생`">×{{ t.count }}</span>
         </div>
       </TransitionGroup>
     </div>
@@ -58,6 +59,15 @@ const ICONS = { success: '✓', error: '✕', info: 'ℹ', warn: '⚠' }
 
 .toast__icon { font-size: 1rem; flex-shrink: 0; margin-top: 0.05rem; }
 .toast__msg  { flex: 1; word-break: break-word; }
+.toast__count {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.25);
+  align-self: center;
+}
 
 .toast-enter-active,
 .toast-leave-active { transition: all 0.25s ease; }

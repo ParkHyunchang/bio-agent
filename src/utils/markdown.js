@@ -86,17 +86,37 @@ export function renderMarkdown(text) {
   return html
 }
 
+/**
+ * 검색어 토큰을 본문에서 <mark>로 감싼 안전한 HTML을 반환.
+ * - 입력 텍스트는 escapeHtml 적용 후 처리되어 XSS 안전.
+ * - query에서 PubMed term 연산자([dp], AND, OR, NOT, " ", ()) 제거.
+ * - 2글자 이상 토큰만 매칭, 대소문자 구분 안 함.
+ */
+export function highlightQuery(text, query) {
+  const escaped = escapeHtml(text == null ? '' : String(text))
+  if (!query) return escaped
+  const tokens = String(query)
+    .replace(/\[[^\]]*\]/g, ' ')
+    .replace(/\b(AND|OR|NOT)\b/gi, ' ')
+    .replace(/["()]/g, ' ')
+    .split(/\s+/)
+    .map(t => t.trim())
+    .filter(t => t.length >= 2)
+  if (tokens.length === 0) return escaped
+  const re = new RegExp(
+    '(' + tokens.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|') + ')',
+    'gi'
+  )
+  return escaped.replace(re, '<mark>$1</mark>')
+}
+
+/**
+ * AI 리뷰 본문 렌더러. renderMarkdown을 그대로 사용해 **bold**, *italic*,
+ * 인라인 코드, 링크, 표, 코드블록을 모두 지원한다. 헤더(##, ###)는
+ * renderMarkdown이 .md-heading / .md-heading--h3 클래스를 부여하므로,
+ * paper-review.css에서 해당 클래스를 리뷰 섹션 헤더 스타일로 매핑한다.
+ */
 export function renderPaperReview(text) {
   if (text == null) return ''
-  return text
-    .split('\n')
-    .map(line => {
-      const escaped = escapeHtml(line)
-      if (line.startsWith('## ')) return `<h3 class="rv-h3">${escapeHtml(line.slice(3))}</h3>`
-      if (line.startsWith('### ')) return `<h4 class="rv-h4">${escapeHtml(line.slice(4))}</h4>`
-      if (line.startsWith('- ') || line.startsWith('* ')) return `<li class="rv-li">${escapeHtml(line.slice(2))}</li>`
-      if (line.trim() === '') return '<div class="rv-gap"></div>'
-      return `<p class="rv-p">${escaped}</p>`
-    })
-    .join('')
+  return renderMarkdown(text)
 }

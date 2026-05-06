@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npm run *)",
       "Bash(./mvnw compile *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(npx vue-cli-service *)"
     ]
   }
 }

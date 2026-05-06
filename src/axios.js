@@ -25,12 +25,19 @@ const api = axios.create({
   timeout: 30_000,
 })
 
-// 429 응답을 일관된 에러 메시지로 정규화 (서버 응답에 error 문자열이 있을 때)
+// GlobalExceptionHandler가 반환하는 { error, status, requestId } 형식을 활용해
+// err.message를 사용자 친화적 메시지로 정규화.
 api.interceptors.response.use(
   (r) => r,
   (err) => {
-    if (err.response?.status === 429) {
-      err.message = err.response.data?.error || '요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.'
+    const status = err.response?.status
+    const serverMsg = err.response?.data?.error
+    if (serverMsg) {
+      err.message = serverMsg
+    } else if (status === 429) {
+      err.message = '요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.'
+    } else if (status >= 500) {
+      err.message = '서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
     }
     return Promise.reject(err)
   }
