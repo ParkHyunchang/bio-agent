@@ -27,6 +27,14 @@ export function useGelTraining(emit) {
   const storedTrainedIds = localStorage.getItem(TRAINED_IDS_KEY)
   const trainedIds = ref(storedTrainedIds ? JSON.parse(storedTrainedIds) : null)
 
+  async function performModelReset() {
+    await apiResetModel()
+    trainResult.value = null
+    trainedIds.value = null
+    localStorage.removeItem(TRAIN_RESULT_KEY)
+    localStorage.removeItem(TRAINED_IDS_KEY)
+  }
+
   const needsRetraining = computed(() => {
     if (!trainResult.value) return false
     if (!trainedIds.value) return true
@@ -83,7 +91,7 @@ export function useGelTraining(emit) {
       await apiDeleteRecord(id)
       records.value = records.value.filter(r => r.id !== id)
       selectedIds.value = selectedIds.value.filter(sid => sid !== id)
-      if (records.value.length === 0) await apiResetModel()
+      if (records.value.length === 0) await performModelReset()
       emit('model-updated')
       success('삭제되었습니다.')
     } catch (e) {
@@ -100,7 +108,7 @@ export function useGelTraining(emit) {
       const deletedSet = new Set(selectedIds.value)
       records.value = records.value.filter(r => !deletedSet.has(r.id))
       selectedIds.value = []
-      if (records.value.length === 0) await apiResetModel()
+      if (records.value.length === 0) await performModelReset()
       emit('model-updated')
       success(`${deletedSet.size}개 삭제되었습니다.`)
     } catch (e) {
@@ -172,7 +180,7 @@ export function useGelTraining(emit) {
         const deletedIds = new Set(matching.map(r => r.id))
         records.value = records.value.filter(r => !deletedIds.has(r.id))
         selectedIds.value = selectedIds.value.filter(id => !deletedIds.has(id))
-        if (records.value.length === 0) await apiResetModel()
+        if (records.value.length === 0) await performModelReset()
         emit('model-updated')
       } catch (e) {
         error('기존 데이터 삭제 실패: ' + (e.response?.data || e.message))

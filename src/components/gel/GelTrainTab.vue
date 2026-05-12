@@ -175,26 +175,43 @@
     <section class="train-section">
       <div class="train-header">
         <h2 class="section-title">
-          모델 재학습
-          <span v-if="needsRetraining" class="retrain-badge">재학습 필요</span>
+          {{ trainResult ? '모델 재학습' : '모델 학습' }}
+          <span v-if="trainReadyState === 'ready-retrain'" class="retrain-badge">재학습 필요</span>
+          <span v-else-if="trainReadyState === 'ready-first'" class="retrain-badge retrain-badge--ready">학습 준비 완료</span>
+          <span v-else-if="trainReadyState === 'insufficient'" class="retrain-badge retrain-badge--info">샘플 {{ samplesNeeded }}개 더 필요</span>
         </h2>
         <button
           class="btn-secondary"
-          :class="{ 'btn-secondary--warn': needsRetraining }"
-          :disabled="records.length < 3 || isTraining"
+          :class="{
+            'btn-secondary--warn': trainReadyState === 'ready-retrain',
+            'btn-secondary--ready': trainReadyState === 'ready-first'
+          }"
+          :disabled="records.length < MIN_TRAIN_SAMPLES || isTraining"
           @click="trainModel"
         >
           <span v-if="isTraining" class="spinner spinner--dark"></span>
           <span v-else>학습 실행 ({{ records.length }}개)</span>
         </button>
       </div>
-      <div v-if="needsRetraining" class="retrain-banner">
-        <span class="retrain-banner__icon">⚠</span>
-        <span class="retrain-banner__text">
+      <div v-if="trainReadyState === 'insufficient'" class="train-banner train-banner--info">
+        <span class="train-banner__icon">ℹ</span>
+        <span class="train-banner__text">
+          현재 {{ records.length }}개 등록되었습니다. 모델 학습을 시작하려면 <strong>{{ samplesNeeded }}개</strong>를 더 추가해주세요. (최소 {{ MIN_TRAIN_SAMPLES }}개 필요)
+        </span>
+      </div>
+      <div v-else-if="trainReadyState === 'ready-first'" class="train-banner train-banner--ready">
+        <span class="train-banner__icon">✨</span>
+        <span class="train-banner__text">
+          학습 데이터 {{ records.length }}개가 등록되었습니다. <strong>지금 학습을 실행</strong>하면 Ct값 예측이 가능해집니다.
+        </span>
+      </div>
+      <div v-else-if="trainReadyState === 'ready-retrain'" class="train-banner train-banner--warn">
+        <span class="train-banner__icon">⚠</span>
+        <span class="train-banner__text">
           학습 데이터가 변경되었습니다<template v-if="retrainingDiffText"> {{ retrainingDiffText }}</template>. 현재 모델은 최신 데이터를 반영하지 않습니다. 모델을 재학습해주세요.
         </span>
       </div>
-      <p class="section-desc">저장된 학습 데이터 전체를 사용해 모델을 재학습합니다. 최소 3개 이상 필요. 학습 목표: ① mecA 이진 분류(양성/음성) ② 저농도(10¹~10³) LOD 탐지 ③ 프라이머 다이머 노이즈 필터링.</p>
+      <p class="section-desc">저장된 학습 데이터 전체를 사용해 모델을 재학습합니다. 최소 {{ MIN_TRAIN_SAMPLES }}개 이상 필요. 학습 목표: ① mecA 이진 분류(양성/음성) ② 저농도(10¹~10³) LOD 탐지 ③ 프라이머 다이머 노이즈 필터링.</p>
 
 <div v-if="trainResult" class="result-box result-box--info">
         <div class="result-main-line">
@@ -557,6 +574,21 @@ const uploadStep = computed(() => {
 })
 
 const canSave = computed(() => Object.keys(laneCtInputs.value).length > 0)
+
+// ── 학습 준비 상태 ────────────────────────
+const MIN_TRAIN_SAMPLES = 3
+
+const samplesNeeded = computed(() =>
+  Math.max(0, MIN_TRAIN_SAMPLES - records.value.length)
+)
+
+const trainReadyState = computed(() => {
+  if (records.value.length === 0) return 'empty'
+  if (records.value.length < MIN_TRAIN_SAMPLES) return 'insufficient'
+  if (!trainResult.value) return 'ready-first'
+  if (needsRetraining.value) return 'ready-retrain'
+  return 'up-to-date'
+})
 
 // ── 데이터셋 통계 ─────────────────────────
 const datasetStats = computed(() => {

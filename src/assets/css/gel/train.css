@@ -363,33 +363,60 @@
   margin-left: 0.5rem;
 }
 
-.retrain-banner {
+.train-banner {
   display: flex;
   align-items: flex-start;
   gap: 0.5rem;
   padding: 0.65rem 0.9rem;
-  background: rgba(255, 152, 0, 0.08);
-  border: 1px solid #ff9800;
   border-radius: 8px;
   margin-bottom: 0.75rem;
 }
 
-.retrain-banner__icon {
+.train-banner__icon {
   font-size: 0.95rem;
-  color: #ff9800;
   flex-shrink: 0;
   margin-top: 0.05rem;
 }
 
-.retrain-banner__text {
+.train-banner__text {
   font-size: 0.84rem;
   color: var(--text-primary);
   line-height: 1.45;
 }
 
+.train-banner--warn  { background: rgba(255, 152, 0, 0.08); border: 1px solid #ff9800; }
+.train-banner--warn  .train-banner__icon { color: #ff9800; }
+
+.train-banner--ready { background: rgba(76, 175, 80, 0.08); border: 1px solid #4caf50; }
+.train-banner--ready .train-banner__icon { color: #4caf50; }
+
+.train-banner--info  { background: rgba(33, 150, 243, 0.08); border: 1px solid #2196f3; }
+.train-banner--info  .train-banner__icon { color: #2196f3; }
+
+.retrain-badge--ready {
+  background: rgba(76, 175, 80, 0.15);
+  color: #2e7d32;
+  border-color: #4caf50;
+}
+
+.retrain-badge--info {
+  background: rgba(33, 150, 243, 0.12);
+  color: #1565c0;
+  border-color: #2196f3;
+}
+
 .btn-secondary--warn {
   border-color: #ff9800 !important;
   color: #e65100 !important;
+}
+
+.btn-secondary--ready {
+  border-color: #4caf50 !important;
+  color: #2e7d32 !important;
+  background: rgba(76, 175, 80, 0.06) !important;
+}
+.btn-secondary--ready:hover:not(:disabled) {
+  background: rgba(76, 175, 80, 0.14) !important;
 }
 
 /* ── 이미지 미리보기 ─────────────────────── */
@@ -599,8 +626,8 @@
   .btn-dup-overwrite,
   .btn-dup-reset { width: 100%; justify-content: center; }
 
-  /* 재학습 배너 */
-  .retrain-banner { flex-direction: column; gap: 0.3rem; }
+  /* 학습 상태 배너 */
+  .train-banner { flex-direction: column; gap: 0.3rem; }
 
   /* 테이블 컨트롤 */
   .search-input { min-width: unset; width: 100%; }
