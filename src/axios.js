@@ -1,22 +1,19 @@
 import axios from 'axios'
 
+// baseURL 결정 우선순위:
+// 1. 빌드 타임 환경변수(VUE_APP_API_URL) — .env.production / .env.development 에서 주입
+// 2. 폴백: 호스트명으로 런타임 판단 (env 미설정 시 안전망)
 const getBaseURL = () => {
+  const envUrl = process.env.VUE_APP_API_URL
+  if (envUrl !== undefined && envUrl !== '') {
+    return envUrl
+  }
+
   const hostname = window.location.hostname
-  const port = 3211
-
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
-    return `http://localhost:${port}`
+    return 'http://localhost:3211'
   }
-
-  if (hostname === '125.141.20.218') {
-    return `http://125.141.20.218:${port}`
-  }
-
-  if (hostname.includes('synology.me')) {
-    return `http://${hostname}:${port}`
-  }
-
-  return `http://125.141.20.218:${port}`
+  return 'https://hyunchang.synology.me:3213'
 }
 
 const api = axios.create({
