@@ -51,7 +51,7 @@ src/
 │   └── PaperReviewView.vue       # 논문 리뷰 페이지
 ├── router/
 │   └── index.js                  # 라우터 설정
-├── axios.js                      # Axios 인스턴스 (baseURL 자동 설정)
+├── axios.js                      # Axios 인스턴스 (baseURL: env > 호스트 폴백)
 ├── App.vue
 └── main.js
 ```
@@ -99,11 +99,20 @@ cancer[Title] AND pubmed pmc[sb]
 
 ## 백엔드 연결
 
-접속 호스트에 따라 백엔드 URL이 자동으로 결정됩니다.
+백엔드 URL은 빌드 타임 환경변수 `VUE_APP_API_URL`로 결정됩니다.
 
-| 환경 | 프론트 | 백엔드 |
-|------|--------|--------|
-| 로컬 | localhost:8080 | localhost:3211 |
-| NAS  | 125.141.20.218 | 125.141.20.218:3211 |
+| 파일 | 값 | 적용 시점 |
+|------|----|----------|
+| `.env.development` | `http://localhost:3211` | `npm run serve` |
+| `.env.production`  | `https://hyunchang.synology.me:3213` | `npm run build` |
+
+운영은 Synology 역방향 프록시(3213, HTTPS)를 통해 백엔드(3211)로 전달됩니다. env 미설정 시에는 호스트명을 보고 localhost 또는 `https://hyunchang.synology.me:3213` 으로 폴백합니다.
 
 백엔드가 실행되지 않은 경우 홈 화면에 "서버 대기 중" 상태가 표시됩니다.
+
+## 배포 (Nginx)
+
+`nginx.conf`는 두 가지 캐시 정책을 갖습니다:
+
+- **해시 붙은 정적 자산**(`*.js`, `*.css`, 폰트, 이미지 등): `Cache-Control: public, immutable` + 1년. 파일명 hash가 바뀌면 브라우저가 자동으로 새 버전을 받습니다.
+- **HTML / SPA 라우팅**: `expires -1` — 캐시 금지. 새 배포가 즉시 반영됩니다.
