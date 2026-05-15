@@ -135,6 +135,7 @@
                   <span v-else-if="lane.concentrationLabel === 'NTC'" class="chip chip--gray">음성대조</span>
                   <span v-else-if="lane.isSaturated" class="chip chip--orange">포화</span>
                   <span v-else-if="lane.isNegative" class="chip chip--gray">미검출</span>
+                  <span v-else-if="lane.isFaint" class="chip chip--yellow">희미</span>
                   <span v-else class="chip chip--green">검출</span>
                 </td>
                 <td>

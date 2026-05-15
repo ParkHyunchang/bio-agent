@@ -127,6 +127,7 @@
                     <span v-else-if="lane.isSaturated" class="chip chip--orange">포화 (고농도)</span>
                     <span v-else-if="lane.isNegative" class="chip chip--gray">mecA 음성</span>
                     <span v-else-if="lane.isPrimerDimer" class="chip chip--orange">다이머 노이즈</span>
+                    <span v-else-if="lane.isFaint" class="chip chip--yellow">희미 (신호 미약)</span>
                     <span v-else class="chip chip--green">mecA 양성</span>
                   </td>
                 </tr>
